@@ -35,6 +35,8 @@ use Illuminate\Support\Facades\Route;
 */
 // Done 
 // connected
+// Github COnnected to FJ lubricants final version
+
 Route::get('/home', [HomeController::class, 'index'])->middleware('auth')->name('home');
 
 // Route::get('/adminpage', [HomeController::class, 'adminpage'])->middleware(['auth','admin'])->name('adminpage');
