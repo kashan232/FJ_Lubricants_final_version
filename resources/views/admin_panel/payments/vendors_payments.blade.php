@@ -62,24 +62,30 @@
 </div>
 @include('admin_panel.include.footer_include')
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const select = document.getElementById("Vendor");
-        select.addEventListener("change", function() {
-            const selectedId = this.value;
-            fetchVendorData(selectedId);
+    $(document).ready(function () {
+        // Select2 change event
+        $('#Vendor').on('select2:select', function (e) {
+            const vendorId = $(this).val();
+            getVendorBalance(vendorId);
         });
+
     });
 
-    const baseUrl = "{{ url('/get-vendor-balance') }}";
+    function getVendorBalance(id) {
 
-    function fetchVendorData(vendorId) {
-        let url = `${baseUrl}/${vendorId}`;
+        let url = "{{ route('get-Vendor-balance', ['id' => ':id']) }}";
+        url = url.replace(':id', id);
+
+
         fetch(url)
-            .then(res => res.json())
+            .then(response => response.json())
             .then(data => {
-                console.log("Data received:", data);
-                document.getElementById('Vendor_balance').innerText = 'PKR ' + (data.balance ?? 0);
+                document.getElementById('Vendor_balance').innerText =
+                    'PKR ' + (data.balance ?? 0);
             })
-            .catch(err => console.error('Fetch error:', err));
+            .catch(error => {
+                alert("Fetch error: " + error);
+                console.error("Fetch Error:", error);
+            });
     }
 </script>

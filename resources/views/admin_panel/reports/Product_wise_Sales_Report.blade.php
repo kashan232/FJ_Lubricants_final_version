@@ -1,7 +1,7 @@
 @include('admin_panel.include.header_include')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+
 <style>
-    /* Select2 x Bootstrap height fix */
     .select2-container .select2-selection--multiple {
         min-height: 38px;
         border: 1px solid #ced4da;
@@ -12,6 +12,7 @@
         margin-top: 4px;
     }
 </style>
+
 <div class="main-wrapper">
     @include('admin_panel.include.navbar_include')
     @include('admin_panel.include.admin_sidebar_include')
@@ -34,15 +35,18 @@
                                     @endforeach
                                 </select>
                             </div>
+
                             <div class="col-md-4">
                                 <label for="start_date" class="form-label">Start Date</label>
                                 <input type="date" id="start_date" name="start_date" class="form-control">
                             </div>
+
                             <div class="col-md-4">
                                 <label for="end_date" class="form-label">End Date</label>
                                 <input type="date" id="end_date" name="end_date" class="form-control">
                             </div>
                         </div>
+
                         <div class="text-center mt-4">
                             <button type="button" id="searchLedger" class="btn btn-primary btn-lg px-5">
                                 Search
@@ -51,11 +55,13 @@
                     </form>
 
                     <div class="title mt-4">PRODUCT SALES REPORT</div>
-                    <div id="salesmanHeading" class="text-left fw-bold mb-2" style="font-size: 16px;"></div>
+
                     <table id="productSaleTable">
                         <thead>
                             <tr>
                                 <th>SN#</th>
+                                <th>Customer / Distributor</th>
+                                <th>Address / Area</th>
                                 <th>Item</th>
                                 <th>Carton Qty</th>
                                 <th>PCS Qty</th>
@@ -65,13 +71,10 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="6" class="text-center">No Data Available</td>
+                                <td colspan="8" class="text-center">No Data Available</td>
                             </tr>
                         </tbody>
                     </table>
-
-
-
 
                 </div>
             </div>
@@ -83,11 +86,8 @@
 
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-    }
 
+<style>
     table {
         width: 100%;
         border-collapse: collapse;
@@ -102,7 +102,6 @@
 
     th {
         background-color: #f2f2f2;
-        font-weight: bold;
         text-align: center;
     }
 
@@ -113,6 +112,7 @@
         margin-bottom: 10px;
     }
 </style>
+
 <script>
     $(function() {
         $('#Product').select2({
@@ -124,6 +124,7 @@
     });
 
     document.getElementById("searchLedger").addEventListener("click", function() {
+
         let products = $('#Product').val() || [];
         let startDate = document.getElementById("start_date").value;
         let endDate = document.getElementById("end_date").value;
@@ -143,46 +144,62 @@
             })
             .then(response => response.json())
             .then(data => {
+
                 let tableBody = document.querySelector("#productSaleTable tbody");
                 tableBody.innerHTML = "";
 
-                if (data.length > 0) {
-                    let totalCartons = 0,
-                        totalPcs = 0,
-                        totalLiters = 0,
-                        totalAmount = 0;
-
-                    data.forEach((item, index) => {
-                        totalCartons += parseFloat(item.carton_qty);
-                        totalPcs += parseFloat(item.pcs);
-                        totalLiters += parseFloat(item.liters);
-                        totalAmount += parseFloat(item.amount);
-
-                        let row = `<tr>
-                <td>${index + 1}</td>
-                <td>${item.item}</td>
-                <td>${item.carton_qty}</td>
-                <td>${item.pcs}</td>
-                <td>${item.liters}</td>
-                <td>${item.amount}</td>
-            </tr>`;
-                        tableBody.innerHTML += row;
-                    });
-
-                    // Grand Total
-                    tableBody.innerHTML += `
-        <tr class="fw-bold">
-            <td colspan="2" class="text-end">Grand Total</td>
-            <td>${totalCartons}</td>
-            <td>${totalPcs}</td>
-            <td>${totalLiters}</td>
-            <td>${totalAmount.toFixed(2)}</td>
-        </tr>`;
-                } else {
-                    tableBody.innerHTML = `<tr><td colspan="6" class="text-center">No Data Available</td></tr>`;
+                if (data.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="8" class="text-center">No Data Available</td></tr>`;
+                    return;
                 }
-            })
 
+                let totalCartons = 0,
+                    totalPcs = 0,
+                    totalLiters = 0,
+                    totalAmount = 0;
+
+                let sno = 1;
+
+                data.forEach((item) => {
+
+                    totalCartons += parseFloat(item.carton_qty);
+                    totalPcs += parseFloat(item.pcs);
+                    totalLiters += parseFloat(item.liters);
+                    totalAmount += parseFloat(item.amount);
+
+                    let row = `
+                    <tr>
+                        <td>${sno}</td>
+                        <td>
+                            <span style="font-weight:bold; color:${item.type === "Distributor" ? "blue" : "green"};">
+                                ${item.type}:
+                            </span> 
+                            ${item.name}
+                        </td>
+                        <td>${item.address} / ${item.area}</td>
+                        <td>${item.item}</td>
+                        <td>${item.carton_qty}</td>
+                        <td>${item.pcs}</td>
+                        <td>${item.liters}</td>
+                        <td>${item.amount}</td>
+                    </tr>
+                `;
+
+                    tableBody.innerHTML += row;
+                    sno++;
+                });
+
+                // GRAND TOTAL
+                tableBody.innerHTML += `
+                <tr class="fw-bold">
+                    <td colspan="4" class="text-end fw-bold">Grand Total</td>
+                    <td>${totalCartons}</td>
+                    <td>${totalPcs}</td>
+                    <td>${totalLiters}</td>
+                    <td>${totalAmount}</td>
+                </tr>
+            `;
+            })
             .catch(error => console.error("Error:", error));
     });
 </script>

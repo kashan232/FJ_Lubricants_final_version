@@ -195,6 +195,8 @@
     </div>
 </div>
 @include('admin_panel.include.footer_include')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <!-- JavaScript to Auto-Fill customer Details -->
 <script>
@@ -206,6 +208,52 @@
         document.getElementById('address').value = selectedOption.getAttribute('data-address') || '';
         document.getElementById('phone').value = selectedOption.getAttribute('data-phone') || '';
         document.getElementById('shopname').value = selectedOption.getAttribute('data-shopname') || '';
+    });
+
+    $(document).ready(function() {
+        // initialize Select2 on the customer select
+        $('#customer').select2({
+            placeholder: 'Search & select customer',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // helper to fill fields from the selected <option>
+        function fillCustomerFields($option) {
+            $('#shopname').val($option.data('shopname') || '');
+            $('#city').val($option.data('city') || '');
+            $('#area').val($option.data('area') || '');
+            $('#address').val($option.data('address') || '');
+            $('#phone').val($option.data('phone') || '');
+        }
+
+        // When value changes (works for both native change and select2 select)
+        $('#customer').on('change', function() {
+            const $sel = $(this).find(':selected');
+            fillCustomerFields($sel);
+        });
+
+        // Also handle select2:select event (same as change, but ensures compatibility)
+        $('#customer').on('select2:select', function(e) {
+            // e.params.data may not contain data-* attrs, so read from option element
+            fillCustomerFields($(this).find(':selected'));
+        });
+
+        // clear fields when cleared
+        $('#customer').on('select2:clear', function() {
+            $('#shopname, #city, #area, #address, #phone').val('');
+        });
+
+        // UX nicety: focus the search input when dropdown opens
+        $('#customer').on('select2:open', function() {
+            $('.select2-search__field').focus();
+        });
+
+        // If the page loads with a preselected customer (edit forms etc.), fill fields immediately
+        const initial = $('#customer').find(':selected');
+        if (initial && initial.val()) {
+            fillCustomerFields(initial);
+        }
     });
 
 

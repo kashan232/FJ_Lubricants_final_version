@@ -96,12 +96,31 @@
 @include('admin_panel.include.footer_include')
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+
+
 <script>
     function formatDate(dateStr) {
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const d = new Date(dateStr);
         return `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${String(d.getFullYear()).slice(-2)}`;
     }
+
+    $(document).ready(function() {
+        // Init Select2 on the Vendor select
+        $('#Vendor').select2({
+            placeholder: '-- Select Vendor --',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // optional: focus search when opened (nice UX)
+        $('#Vendor').on('select2:open', function() {
+            $('.select2-search__field').focus();
+        });
+    });
 
     $('#searchLedger').click(function() {
         const start = $('#start_date').val();

@@ -104,6 +104,11 @@
 @include('admin_panel.include.footer_include')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+
 <script>
     function formatDate(dateString) {
         const date = new Date(dateString);
@@ -112,6 +117,29 @@
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
     }
+
+    $(document).ready(function() {
+        // init Select2 on Vendor select
+        $('#Vendor').select2({
+            placeholder: '-- Select Vendor --',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // When vendor selected, fill fields from data-* attributes
+        $('#Vendor').on('select2:select', function(e) {
+            var $selected = $(this).find(':selected');
+            $('#contact').val($selected.data('contact') || '');
+            $('#city').val($selected.data('city') || '');
+            $('#area').val($selected.data('area') || '');
+        });
+
+        // Clear fields when cleared
+        $('#Vendor').on('select2:clear', function() {
+            $('#contact, #city, #area').val('');
+        });
+    });
+
     $(document).ready(function() {
         $('#Vendor').change(function() {
             var selected = $(this).find(':selected');

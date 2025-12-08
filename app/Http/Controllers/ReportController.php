@@ -1195,88 +1195,89 @@ class ReportController extends Controller
 
         $sales = [];
 
-        // --- Distributor Sales ---
-        $query   = DB::table('sales')->whereBetween('Date', [$startDate, $endDate]);
-        $results = $query->get();
+        // DISTRIBUTOR SALES
+        $results = DB::table('sales')
+            ->whereBetween('Date', [$startDate, $endDate])
+            ->get();
 
-        $distributorIds = $results->pluck('distributor_id')->unique()->filter()->values();
-        $distributorMap = DB::table('distributors')
-            ->whereIn('id', $distributorIds)
-            ->pluck('Customer', 'id');
+        $distributors = DB::table('distributors')
+            ->select('id', 'Customer as name', 'address', 'area')
+            ->get()
+            ->keyBy('id');
+
+        $sales = [];
 
         foreach ($results as $row) {
+
             $items   = json_decode($row->item, true) ?? [];
             $cartons = json_decode($row->carton_qty, true) ?? [];
             $pcs     = json_decode($row->pcs, true) ?? [];
+            $liters  = json_decode($row->liter, true) ?? [];
             $amounts = json_decode($row->amount, true) ?? [];
-            $liters  = property_exists($row, 'liter') ? (json_decode($row->liter, true) ?? []) : [];
+
+            $d = $distributors[$row->distributor_id] ?? null;
 
             foreach ($items as $i => $itm) {
-                // ❌ Null ya "Select Item" skip karo
-                if (empty($itm) || strtolower($itm) == "select item") {
-                    continue;
-                }
 
-                // Agar filter laga hai to "All" ke ilawa wahi products allow hongay
-                if (!in_array("All", $products) && !in_array($itm, $products)) {
-                    continue;
-                }
+                if (empty($itm) || strtolower($itm) === "select item") continue;
+                if (!in_array("All", $products) && !in_array($itm, $products)) continue;
 
-                if (!isset($sales[$itm])) {
-                    $sales[$itm] = [
-                        'item'       => $itm,
-                        'carton_qty' => 0,
-                        'pcs'        => 0,
-                        'liters'     => 0,
-                        'amount'     => 0,
-                    ];
-                }
-
-                $sales[$itm]['carton_qty'] += $cartons[$i] ?? 0;
-                $sales[$itm]['pcs']        += $pcs[$i] ?? 0;
-                $sales[$itm]['liters']     += $liters[$i] ?? 0;
-                $sales[$itm]['amount']     += $amounts[$i] ?? 0;
+                $sales[] = [
+                    'type'        => "Distributor",
+                    'name'        => $d->name ?? "-",
+                    'address'     => $d->address ?? "-",
+                    'area'        => $d->area ?? "-",
+                    'item'        => $itm,
+                    'carton_qty'  => $cartons[$i] ?? 0,
+                    'pcs'         => $pcs[$i] ?? 0,
+                    'liters'      => $liters[$i] ?? 0,
+                    'amount'      => $amounts[$i] ?? 0,
+                ];
             }
         }
 
-        // --- Customer Sales ---
-        $query   = DB::table('local_sales')->whereBetween('Date', [$startDate, $endDate]);
-        $results = $query->get();
 
-        foreach ($results as $row) {
+        // CUSTOMER SALES
+        $local = DB::table('local_sales')
+            ->whereBetween('Date', [$startDate, $endDate])
+            ->get();
+
+        $customers = DB::table('customers')
+            ->select('id', 'customer_name as name', 'address', 'area')
+            ->get()
+            ->keyBy('id');
+
+        foreach ($local as $row) {
+
             $items   = json_decode($row->item, true) ?? [];
             $cartons = json_decode($row->carton_qty, true) ?? [];
             $pcs     = json_decode($row->pcs, true) ?? [];
+            $liters  = json_decode($row->liter, true) ?? [];
             $amounts = json_decode($row->amount, true) ?? [];
-            $liters  = property_exists($row, 'liter') ? (json_decode($row->liter, true) ?? []) : [];
+
+            $c = $customers[$row->customer_id] ?? null;
 
             foreach ($items as $i => $itm) {
-                // ❌ Null ya "Select Item" skip karo
-                if (empty($itm) || strtolower($itm) == "select item") {
-                    continue;
-                }
 
-                if (!in_array("All", $products) && !in_array($itm, $products)) {
-                    continue;
-                }
+                if (empty($itm) || strtolower($itm) === "select item") continue;
+                if (!in_array("All", $products) && !in_array($itm, $products)) continue;
 
-                if (!isset($sales[$itm])) {
-                    $sales[$itm] = [
-                        'item'       => $itm,
-                        'carton_qty' => 0,
-                        'pcs'        => 0,
-                        'liters'     => 0,
-                        'amount'     => 0,
-                    ];
-                }
-
-                $sales[$itm]['carton_qty'] += $cartons[$i] ?? 0;
-                $sales[$itm]['pcs']        += $pcs[$i] ?? 0;
-                $sales[$itm]['liters']     += $liters[$i] ?? 0;
-                $sales[$itm]['amount']     += $amounts[$i] ?? 0;
+                $sales[] = [
+                    'type'        => "Customer",
+                    'name'        => $c->name ?? "-",
+                    'address'     => $c->address ?? "-",
+                    'area'        => $c->area ?? "-",
+                    'item'        => $itm,
+                    'carton_qty'  => $cartons[$i] ?? 0,
+                    'pcs'         => $pcs[$i] ?? 0,
+                    'liters'      => $liters[$i] ?? 0,
+                    'amount'      => $amounts[$i] ?? 0,
+                ];
             }
         }
 
+
+        // return final array values, party_details ab simple array hai
         return response()->json(array_values($sales));
     }
 }

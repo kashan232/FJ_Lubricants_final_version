@@ -103,6 +103,11 @@
 @include('admin_panel.include.footer_include')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+
 <style>
     .ledger-container {
         border: 2px solid black;
@@ -159,6 +164,36 @@
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
     }
+
+    $(document).ready(function() {
+        // init select2 on the existing select
+        $('#Customer').select2({
+            placeholder: '-- Select Customer --',
+            allowClear: true,
+            width: '100%',
+            // show area in the option display
+            templateResult: function(item) {
+                if (!item.id) return item.text;
+                return $('<span>' + item.text + '</span>');
+            },
+            templateSelection: function(item) {
+                return item.text;
+            }
+        });
+
+        // When an option is selected, fill contact/city/area from data attributes
+        $('#Customer').on('select2:select', function(e) {
+            var $selected = $(this).find(':selected');
+            $('#contact').val($selected.data('contact') || '');
+            $('#city').val($selected.data('city') || '');
+            $('#area').val($selected.data('area') || '');
+        });
+
+        // When cleared
+        $('#Customer').on('select2:clear', function() {
+            $('#contact, #city, #area').val('');
+        });
+    });
 
     $(document).ready(function() {
 

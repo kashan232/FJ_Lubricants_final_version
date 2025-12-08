@@ -187,6 +187,8 @@
     </div>
 </div>
 @include('admin_panel.include.footer_include')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <!-- JavaScript to Auto-Fill Distributor Details -->
 <script>
@@ -197,6 +199,43 @@
         document.getElementById('area').value = selectedOption.getAttribute('data-area') || '';
         document.getElementById('address').value = selectedOption.getAttribute('data-address') || '';
         document.getElementById('phone').value = selectedOption.getAttribute('data-phone') || '';
+    });
+
+    $(document).ready(function() {
+        // init Select2 (makes <select> searchable)
+        $('#distributor').select2({
+            placeholder: 'Select Distributor',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // Keep your existing auto-fill but also listen to select2 events
+        function fillDistributorFields($option) {
+            $('#city').val($option.data('city') || '');
+            $('#area').val($option.data('area') || '');
+            $('#address').val($option.data('address') || '');
+            $('#phone').val($option.data('phone') || '');
+        }
+
+        // When user selects via native change (fallback) or select2 event
+        $('#distributor').on('change', function() {
+            fillDistributorFields($(this).find(':selected'));
+        });
+
+        $('#distributor').on('select2:select', function(e) {
+            // e.params.data may not include data-* attrs, so use the selected option
+            fillDistributorFields($(this).find(':selected'));
+        });
+
+        // Clear fields on clear
+        $('#distributor').on('select2:clear', function() {
+            $('#city, #area, #address, #phone').val('');
+        });
+
+        // Bonus UX: focus search when dropdown opens
+        $('#distributor').on('select2:open', function() {
+            $('.select2-search__field').focus();
+        });
     });
 
 

@@ -105,6 +105,11 @@
 @include('admin_panel.include.footer_include')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
     function formatDate(dateString) {
         const date = new Date(dateString);
@@ -113,6 +118,28 @@
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
     }
+
+    $(document).ready(function() {
+        // Init select2 on distributor select
+        $('#distributor').select2({
+            placeholder: '-- Select Distributor --',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // fill contact/city/area from data attributes when selected
+        $('#distributor').on('select2:select', function(e) {
+            var $selected = $(this).find(':selected');
+            $('#contact').val($selected.data('contact') || '');
+            $('#city').val($selected.data('city') || '');
+            $('#area').val($selected.data('area') || '');
+        });
+
+        // clear fields when cleared
+        $('#distributor').on('select2:clear', function() {
+            $('#contact, #city, #area').val('');
+        });
+    });
 
     $(document).ready(function() {
         $('#distributor').change(function() {

@@ -100,7 +100,6 @@ class PaymentController extends Controller
     public function getVendorBalance($id)
     {
         $balance = VendorLedger::where('vendor_id', $id)->value('closing_balance');
-
         $purchases = Purchase::where('party_name', $id)
             ->select('purchase_date', 'grand_total')
             ->orderBy('purchase_date', 'desc')
