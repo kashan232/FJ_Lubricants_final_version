@@ -2,21 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
 use App\Models\City;
-use App\Models\Customer;
-use App\Models\CustomerRecovery;
-use App\Models\Distributor;
-use App\Models\LocalSale;
+use App\Models\Sale;
+use App\Models\Vendor;
 use App\Models\Product;
+use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Purchase;
 use App\Models\Recovery;
-use App\Models\Sale;
 use App\Models\Salesman;
-use App\Models\Vendor;
+use App\Models\LocalSale;
+use App\Models\Distributor;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Models\CustomerRecovery;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class ReportController extends Controller
 {
@@ -36,7 +37,6 @@ class ReportController extends Controller
     public function fetchDistributorLedger(Request $request)
     {
         $distributorId = $request->input('distributor_id');
-
         $startDate = $request->input('start_date') . ' 00:00:00';
         $endDate   = $request->input('end_date') . ' 23:59:59';
 
@@ -65,7 +65,6 @@ class ReportController extends Controller
             ->where('created_at', '<', $startDate)
             ->sum('total_return_amount');
 
-        // ✅ Opening Balance = BaseOpening + (Sales − Recoveries − Returns)
         $openingBalance = $baseOpening + $previousSales - ($previousRecoveries + $previousReturns);
 
         // ---- Current Period Transactions ----
@@ -75,31 +74,89 @@ class ReportController extends Controller
             ->select('id', 'amount_paid', 'salesman', 'date', 'remarks')
             ->get();
 
+        // SALES (we assume sales table has the columns; if not, similar checks can be added)
         $sales = DB::table('sales')
             ->where('distributor_id', $distributorId)
             ->whereBetween('Date', [$startDate, $endDate])
-            ->select('invoice_number', 'Date', 'Booker', 'Saleman', 'grand_total', 'discount_value', 'scheme_value', 'net_amount')
-            ->get();
+            ->select('invoice_number', 'Date', 'Booker', 'Saleman', 'grand_total', 'discount_value', 'scheme_value', 'net_amount', 'item', 'rate', 'carton_qty', 'pcs', 'liter')
+            ->get()
+            ->map(function ($sale) {
+                $itemsArray   = json_decode($sale->item, true) ?? [];
+                $ratesArray   = json_decode($sale->rate, true) ?? [];
+                $cartonsArray = json_decode($sale->carton_qty, true) ?? [];
+                $pcsArray     = json_decode($sale->pcs, true) ?? [];
+                $litersArray  = json_decode($sale->liter, true) ?? [];
 
-        $saleReturns = DB::table('sale_returns')
+                $itemsStr   = is_array($itemsArray) ? implode(', ', $itemsArray) : ($itemsArray ?: '-');
+                $ratesStr   = is_array($ratesArray) ? implode(', ', $ratesArray) : ($ratesArray ?: '-');
+                $cartonsStr = is_array($cartonsArray) ? implode(', ', $cartonsArray) : ($cartonsArray ?: '-');
+                $pcsStr     = is_array($pcsArray) ? implode(', ', $pcsArray) : ($pcsArray ?: '-');
+                $litersStr  = is_array($litersArray) ? implode(', ', $litersArray) : ($litersArray ?: '-');
+
+                return [
+                    'invoice_number' => $sale->invoice_number,
+                    'Date'           => $sale->Date,
+                    'Booker'         => $sale->Booker,
+                    'Saleman'        => $sale->Saleman,
+                    'grand_total'    => $sale->grand_total,
+                    'net_amount'     => $sale->net_amount,
+                    'items'          => $itemsStr,
+                    'rates'          => $ratesStr,
+                    'cartons'        => $cartonsStr,
+                    'pcs'            => $pcsStr,
+                    'liters'         => $litersStr,
+                ];
+            });
+
+        // ---- SALE RETURNS: build select list only with existing columns ----
+        $srSelect = ['invoice_number', 'created_at', 'total_return_amount'];
+        $maybeCols = ['item', 'carton_qty', 'pcs', 'liter', 'rate'];
+
+        foreach ($maybeCols as $col) {
+            if (Schema::hasColumn('sale_returns', $col)) {
+                $srSelect[] = $col;
+            }
+        }
+
+        $saleReturnsRaw = DB::table('sale_returns')
             ->where('sale_type', 'distributor')
             ->where('party_id', $distributorId)
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->select('invoice_number', 'created_at', 'total_return_amount')
+            ->select($srSelect)
             ->get();
 
-        // ✅ Closing Balance = Opening + Sales − (Recoveries + Returns)
+        // map returns with safe defaults for missing fields
+        $saleReturns = $saleReturnsRaw->map(function ($r) use ($maybeCols) {
+            // decode if exists, else fallback to '-'
+            $mapVal = function ($obj, $col) {
+                if (!isset($obj->$col)) return '-';
+                $val = $obj->$col;
+                $arr = json_decode($val, true);
+                if (is_array($arr)) return implode(', ', $arr);
+                return ($val === null || $val === '') ? '-' : $val;
+            };
+
+            return [
+                'invoice_number' => $r->invoice_number,
+                'created_at'     => $r->created_at,
+                'total_return_amount' => $r->total_return_amount,
+                'items'          => $mapVal($r, 'item'),
+                'cartons'        => $mapVal($r, 'carton_qty'),
+                'pcs'            => $mapVal($r, 'pcs'),
+                'liters'         => $mapVal($r, 'liter'),
+                'rates'          => $mapVal($r, 'rate'),
+            ];
+        });
+
         $closingBalance = $openingBalance
             + $sales->sum('net_amount')
-            - ($recoveries->sum('amount_paid') + $saleReturns->sum('total_return_amount'));
+            - ($recoveries->sum('amount_paid') + collect($saleReturns)->sum('total_return_amount'));
 
-        // ---- Distributor Balance Transfers (Jo is distributor ko mile hain)
         $transfers = DB::table('distributor_balance_transfers')
             ->where('to_distributor', $distributorId)
             ->whereBetween('transfer_date', [$startDate, $endDate])
             ->select('id', 'from_distributor', 'to_distributor', 'amount', 'transfer_date', 'reason')
             ->get();
-
 
         return response()->json([
             'opening_balance' => $openingBalance,
@@ -112,6 +169,8 @@ class ReportController extends Controller
             'endDate'         => $endDate,
         ]);
     }
+
+
 
 
     public function vendor_Ledger_Record()
@@ -181,16 +240,36 @@ class ReportController extends Controller
         $purchases = DB::table('purchases')
             ->where('party_name', $vendorId)
             ->whereBetween('purchase_date', [$startDate, $endDate])
-            ->select('id', 'invoice_number', 'purchase_date', 'grand_total')
+            ->select('id', 'invoice_number', 'purchase_date', 'grand_total', 'item', 'rate', 'carton_qty', 'pcs', 'liter')
             ->get()
             ->map(function ($purchase) {
+                // decode JSON columns - if your DB stores as JSON strings/arrays
+                $itemsArray   = json_decode($purchase->item, true) ?? [];
+                $ratesArray   = json_decode($purchase->rate, true) ?? [];
+                $cartonsArray = json_decode($purchase->carton_qty, true) ?? [];
+                $pcsArray     = json_decode($purchase->pcs, true) ?? [];
+                $litersArray  = json_decode($purchase->liter, true) ?? [];
+
+                // make readable comma-separated strings
+                $itemsStr   = is_array($itemsArray) ? implode(', ', $itemsArray) : ($itemsArray ?: '');
+                $ratesStr   = is_array($ratesArray) ? implode(', ', $ratesArray) : ($ratesArray ?: '');
+                $cartonsStr = is_array($cartonsArray) ? implode(', ', $cartonsArray) : ($cartonsArray ?: '');
+                $pcsStr     = is_array($pcsArray) ? implode(', ', $pcsArray) : ($pcsArray ?: '');
+                $litersStr  = is_array($litersArray) ? implode(', ', $litersArray) : ($litersArray ?: '');
+
                 return [
                     'invoice_number' => $purchase->invoice_number,
-                    'date'          => $purchase->purchase_date,
-                    'grand_total'   => $purchase->grand_total,
-                    'net_amount'    => $purchase->grand_total,
+                    'date'           => $purchase->purchase_date,
+                    'grand_total'    => $purchase->grand_total,
+                    'net_amount'     => $purchase->grand_total,
+                    'items'          => $itemsStr,
+                    'rates'          => $ratesStr,
+                    'cartons'        => $cartonsStr,
+                    'pcs'            => $pcsStr,
+                    'liters'         => $litersStr,
                 ];
             });
+
 
         $returnsRaw = DB::table('purchase_returns')
             ->where('party_name', $vendorId)
@@ -301,7 +380,7 @@ class ReportController extends Controller
             ->where('created_at', '<', $startDate)
             ->sum('total_return_amount');
 
-        // ✅ Opening Balance = Ledger Opening + (Sales − Recoveries − Returns)
+        // ✅ Opening Balance
         $openingBalance = $baseOpening + $previousSales - ($previousRecoveries + $previousReturns);
 
         // ---- Current Period Transactions ----
@@ -311,23 +390,83 @@ class ReportController extends Controller
             ->select('id', 'amount_paid', 'salesman', 'date', 'remarks')
             ->get();
 
+        // local_sales with items / cartons / pcs / liters / rate decoding
         $localSales = DB::table('local_sales')
             ->where('customer_id', $CustomerId)
             ->whereBetween('Date', [$startDate, $endDate])
-            ->select('invoice_number', 'Date', 'customer_shopname', 'grand_total', 'discount_value', 'scheme_value', 'net_amount', 'Saleman')
-            ->get();
+            ->select('invoice_number', 'Date', 'customer_shopname', 'grand_total', 'discount_value', 'scheme_value', 'net_amount', 'Saleman', 'item', 'rate', 'carton_qty', 'pcs', 'liter')
+            ->get()
+            ->map(function ($sale) {
+                $itemsArray   = json_decode($sale->item, true) ?? [];
+                $ratesArray   = json_decode($sale->rate, true) ?? [];
+                $cartonsArray = json_decode($sale->carton_qty, true) ?? [];
+                $pcsArray     = json_decode($sale->pcs, true) ?? [];
+                $litersArray  = json_decode($sale->liter, true) ?? [];
 
-        $saleReturns = DB::table('sale_returns')
+                $itemsStr   = is_array($itemsArray) ? implode(', ', $itemsArray) : ($itemsArray ?: '-');
+                $ratesStr   = is_array($ratesArray) ? implode(', ', $ratesArray) : ($ratesArray ?: '-');
+                $cartonsStr = is_array($cartonsArray) ? implode(', ', $cartonsArray) : ($cartonsArray ?: '-');
+                $pcsStr     = is_array($pcsArray) ? implode(', ', $pcsArray) : ($pcsArray ?: '-');
+                $litersStr  = is_array($litersArray) ? implode(', ', $litersArray) : ($litersArray ?: '-');
+
+                return [
+                    'invoice_number' => $sale->invoice_number,
+                    'Date'           => $sale->Date,
+                    'customer_shopname' => $sale->customer_shopname,
+                    'Saleman'        => $sale->Saleman,
+                    'grand_total'    => $sale->grand_total,
+                    'net_amount'     => $sale->net_amount,
+                    'items'          => $itemsStr,
+                    'rates'          => $ratesStr,
+                    'cartons'        => $cartonsStr,
+                    'pcs'            => $pcsStr,
+                    'liters'         => $litersStr,
+                ];
+            });
+
+        // SALE RETURNS: select only columns that exist to avoid SQL errors
+        $srSelect = ['invoice_number', 'created_at', 'total_return_amount'];
+        $maybeCols = ['item', 'carton_qty', 'pcs', 'liter', 'rate'];
+
+        foreach ($maybeCols as $col) {
+            if (Schema::hasColumn('sale_returns', $col)) {
+                $srSelect[] = $col;
+            }
+        }
+
+        $saleReturnsRaw = DB::table('sale_returns')
             ->where('sale_type', 'customer')
             ->where('party_id', $CustomerId)
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->select('invoice_number', 'total_return_amount', 'created_at')
+            ->select($srSelect)
             ->get();
 
-        // ✅ Closing Balance = Opening + Sales − (Recoveries + Returns)
+        // map returns safely (missing cols => '-')
+        $saleReturns = $saleReturnsRaw->map(function ($r) {
+            $mapVal = function ($obj, $col) {
+                if (!isset($obj->$col)) return '-';
+                $val = $obj->$col;
+                $arr = json_decode($val, true);
+                if (is_array($arr)) return implode(', ', $arr);
+                return ($val === null || $val === '') ? '-' : $val;
+            };
+
+            return [
+                'invoice_number' => $r->invoice_number,
+                'created_at'     => $r->created_at,
+                'total_return_amount' => $r->total_return_amount,
+                'items'          => $mapVal($r, 'item'),
+                'cartons'        => $mapVal($r, 'carton_qty'),
+                'pcs'            => $mapVal($r, 'pcs'),
+                'liters'         => $mapVal($r, 'liter'),
+                'rates'          => $mapVal($r, 'rate'),
+            ];
+        });
+
+        // ✅ Closing Balance
         $closingBalance = $openingBalance
             + $localSales->sum('net_amount')
-            - ($recoveries->sum('amount_paid') + $saleReturns->sum('total_return_amount'));
+            - ($recoveries->sum('amount_paid') + collect($saleReturns)->sum('total_return_amount'));
 
         return response()->json([
             'opening_balance' => $openingBalance,
@@ -339,8 +478,6 @@ class ReportController extends Controller
             'endDate'         => $endDate,
         ]);
     }
-
-
 
 
 
