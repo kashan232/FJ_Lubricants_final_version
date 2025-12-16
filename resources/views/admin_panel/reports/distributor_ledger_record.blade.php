@@ -18,7 +18,24 @@ table th:nth-child(4) {
     white-space: normal;
     padding-left: 8px;
 }
+.ledger-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.ledger-table td:nth-child(3),
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(4),
+.ledger-table th:nth-child(4) {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+}
 
+/* Keep numeric columns tight */
+.ledger-table td:not(:nth-child(3)):not(:nth-child(4)),
+.ledger-table th:not(:nth-child(3)):not(:nth-child(4)) {
+    white-space: nowrap;
+}
 /* Prevent wide table overflow and make full width */
 .ledger-container {
     border: 2px solid black;
@@ -136,7 +153,20 @@ table th:nth-child(11) {
                     </div>
 
                     <div class="table-responsive">
-                    <table>
+                    <table class="ledger-table">
+                    <colgroup>
+                        <col style="width:90px;">    <!-- Date -->
+                        <col style="width:110px;">   <!-- INV-No -->
+                        <col style="width:300px;">   <!-- Item (WIDE) -->
+                        <col style="width:260px;">   <!-- Description (WIDE) -->
+                        <col style="width:70px;">    <!-- Carton -->
+                        <col style="width:70px;">    <!-- PCS -->
+                        <col style="width:70px;">    <!-- Liters -->
+                        <col style="width:90px;">    <!-- Rate -->
+                        <col style="width:110px;">   <!-- Debit -->
+                        <col style="width:110px;">   <!-- Credit -->
+                        <col style="width:130px;">   <!-- Balance -->
+                    </colgroup>
                         <thead>
                             <tr>
                                 <th style="font-weight:800;">Date</th>
@@ -321,34 +351,50 @@ $(document).ready(function() {
                 // build rows (all with 11 cells)
                 allEntries.forEach(entry => {
                     if (entry.type === 'sale') {
-                        let debit = parseFloat(entry.amount) || 0;
-                        totalDebit += debit; balance += debit;
 
-                        let cartonsCount = sumNumericString(entry.cartons);
-                        let pcsCount = sumNumericString(entry.pcs);
-                        let litersCount = sumNumericString(entry.liters);
+    // 🔹 split comma values
+    let itemsArr  = String(entry.items).split(',').map(v => v.trim());
+    let cartonArr = String(entry.cartons).split(',').map(v => v.trim());
+    let pcsArr    = String(entry.pcs || '').split(',').map(v => v.trim());
+    let literArr  = String(entry.liters || '').split(',').map(v => v.trim());
+    let rateArr   = String(entry.rates).split(',').map(v => v.trim());
 
-                        totalCartons += cartonsCount;
-                        totalPcs += pcsCount;
-                        totalLiters += litersCount;
-                        grandAmount += debit;
+    itemsArr.forEach((itemName, i) => {
 
-                        ledgerHTML += `
+        let carton = parseFloat(cartonArr[i] || 0);
+        let pcs    = parseFloat(pcsArr[i] || 0);
+        let liter  = parseFloat(literArr[i] || 0);
+        let rate   = parseFloat(rateArr[i] || 0);
+
+        // amount calc (same logic jo purchase me use ki)
+        let debit = rate * (carton || liter || pcs || 1);
+
+        totalDebit += debit;
+        balance += debit;
+
+        totalCartons += carton;
+        totalPcs += pcs;
+        totalLiters += liter;
+        grandAmount += debit;
+
+        ledgerHTML += `
 <tr>
     <td>${formatDate(entry.date)}</td>
     <td>${entry.invoice_number || '-'}</td>
-    <td>${entry.items || '-'}</td>
+    <td>${itemName}</td>
     <td>To Sale A/c (${entry.booker || ''})</td>
-    <td>${entry.cartons || '-'}</td>
-    <td>${entry.pcs || '-'}</td>
-    <td>${entry.liters || '-'}</td>
-    <td>${entry.rates || '-'}</td>
+    <td>${carton || '-'}</td>
+    <td>${pcs || '-'}</td>
+    <td>${liter || '-'}</td>
+    <td>${rate}</td>
     <td>Rs. ${debit.toFixed(2)}</td>
     <td>-</td>
-    <td class="fw-bold ${balance < 0 ? 'text-danger' : 'text-success'}">Rs. ${balance.toFixed(2)}</td>
+    <td class="fw-bold ${balance < 0 ? 'text-danger' : 'text-success'}">
+        Rs. ${balance.toFixed(2)}
+    </td>
 </tr>`;
-                    }
-                    else if (entry.type === 'recovery') {
+    });
+} else if (entry.type === 'recovery') {
                         let credit = parseFloat(entry.amount) || 0;
                         totalCredit += credit; balance -= credit;
 

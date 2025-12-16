@@ -16,7 +16,18 @@
         white-space: normal;
         padding-left: 8px;
     }
-
+    .ledger-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.ledger-table td:nth-child(3),
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(4),
+.ledger-table th:nth-child(4) {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+}
     /* Prevent wide table overflow */
     .ledger-container {
         max-width: 100%;
@@ -116,7 +127,21 @@
                                 <span><strong>Vendor:</strong> <span id="vendorName"></span></span>
                                 <span><strong>Duration:</strong> From <span id="startDate"></span> To <span id="endDate"></span></span>
                             </div>
-                            <table>
+                            <table class="ledger-table">
+                                 <colgroup>
+                                    <col style="width: 90px;">   <!-- Date -->
+                                    <col style="width: 110px;">  <!-- INV-No -->
+                                    <col style="width: 280px;">  <!-- Item (WIDE) -->
+                                    <col style="width: 220px;">  <!-- Description (WIDE) -->
+                                    <col style="width: 70px;">   <!-- Carton -->
+                                    <col style="width: 70px;">   <!-- PCS -->
+                                    <col style="width: 70px;">   <!-- Liters -->
+                                    <col style="width: 80px;">   <!-- Rate -->
+                                    <col style="width: 100px;">  <!-- Debit -->
+                                    <col style="width: 100px;">  <!-- Credit -->
+                                    <col style="width: 120px;">  <!-- Balance -->
+                                </colgroup>
+
                                 <thead>
                                     <tr>
                                         <th style="font-weight:800;">Date</th>
@@ -357,40 +382,48 @@
                     // ✅ Maintain Correct Ledger Balance
                     allEntries.forEach(entry => {
                         if (entry.type === 'purchase') {
-                            let debit = parseFloat(entry.amount) || 0;
-                            totalDebit += debit;
-                            balance += debit;
 
-                            let cartonsCount = sumNumericString(entry.cartons);
-                            let pcsCount = sumNumericString(entry.pcs);
-                            let litersCount = sumNumericString(entry.liters || entry.liter);
+                            // 🔹 SPLIT STRINGS INTO ARRAYS
+                            let itemsArr = String(entry.items).split(',').map(v => v.trim());
+                            let cartonArr = String(entry.cartons).split(',').map(v => v.trim());
+                            let pcsArr = String(entry.pcs || '').split(',').map(v => v.trim());
+                            let literArr = String(entry.liters || '').split(',').map(v => v.trim());
+                            let rateArr = String(entry.rates).split(',').map(v => v.trim());
 
-                            totalCartons += cartonsCount;
-                            totalPcs += pcsCount;
-                            totalLiters += litersCount;
-                            grandAmount += debit;
+                            // 🔹 LOOP ITEM-WISE
+                            itemsArr.forEach((itemName, i) => {
 
-                            const items = entry.items || '-';
-                            const cartons = entry.cartons || '-';
-                            const pcs = entry.pcs || '-';
-                            const liters = entry.liters || entry.liter || '-';
-                            const rates = entry.rates || entry.rate || '-';
-                            const desc = 'To Purchase A/c';
+                                let carton = parseFloat(cartonArr[i] || 0);
+                                let pcs = parseFloat(pcsArr[i] || 0);
+                                let liter = parseFloat(literArr[i] || 0);
+                                let rate = parseFloat(rateArr[i] || 0);
 
-                            ledgerHTML += `
+                                // simple amount calc (fallback)
+                                let debit = rate * (carton || 1);
+
+                                totalDebit += debit;
+                                balance += debit;
+
+                                totalCartons += carton;
+                                totalPcs += pcs;
+                                totalLiters += liter;
+                                grandAmount += debit;
+
+                                ledgerHTML += `
 <tr>
     <td>${formatDate(entry.date)}</td>
-    <td>${entry.invoice_number || '-'}</td>
-    <td>${items}</td>
-    <td>${desc}</td>
-    <td>${cartons}</td>
-    <td>${pcs}</td>
-    <td>${liters}</td>
-    <td>${rates}</td>
+    <td>${entry.invoice_number}</td>
+    <td>${itemName}</td>
+    <td>To Purchase A/c</td>
+    <td>${carton || '-'}</td>
+    <td>${pcs || '-'}</td>
+    <td>${liter || '-'}</td>
+    <td>${rate}</td>
     <td>Rs. ${debit.toFixed(2)}</td>
     <td>-</td>
-    <td class="fw-bold ${balance < 0 ? 'text-danger' : 'text-success'}">Rs. ${balance.toFixed(2)}</td>
+    <td class="fw-bold text-success">Rs. ${balance.toFixed(2)}</td>
 </tr>`;
+                            });
                         } else if (entry.type === 'recovery') {
                             let credit = parseFloat(entry.amount) || 0;
                             totalCredit += credit;

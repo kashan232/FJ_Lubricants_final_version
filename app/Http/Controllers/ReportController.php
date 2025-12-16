@@ -1380,7 +1380,7 @@ class ReportController extends Controller
             ->get();
 
         $customers = DB::table('customers')
-            ->select('id', 'customer_name as name', 'address', 'area')
+            ->select('id', 'shop_name as name', 'address', 'area')
             ->get()
             ->keyBy('id');
 
