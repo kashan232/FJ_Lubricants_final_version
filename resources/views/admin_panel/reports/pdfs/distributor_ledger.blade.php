@@ -40,8 +40,8 @@
 
     <p>
         <strong>Distributor:</strong> {{ $distributor->Customer }} <br>
-        <strong>Period:</strong>
-        {{ date('d-m-Y', strtotime($startDate)) }}
+        <strong>Duration:</strong>
+        From {{ date('d-m-Y', strtotime($startDate)) }}
         to
         {{ date('d-m-Y', strtotime($endDate)) }}
     </p>
