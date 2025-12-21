@@ -137,7 +137,7 @@ table th:nth-child(11) {
                     </form>
 
                     <div class="text-end mt-2">
-                        <button id="downloadPdf" class="btn btn-danger">Download PDF</button>
+                        <button id="downloadPdf" class="btn btn-danger">Download PDF </button>
                     </div>
 
                 </div>
@@ -479,14 +479,22 @@ $(document).ready(function() {
 </script>
 
 <script>
-document.getElementById("downloadPdf").addEventListener("click", function() {
-    const element = document.querySelector(".ledger-container");
-    html2pdf().set({
-        margin: 0.2,
-        filename: 'Distributor-Ledger.pdf',
-        image: { type: 'jpeg', quality: 1 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-    }).from(element).save();
-});
+    $('#downloadPdf').on('click', function () {
+
+        let distributorId = $('#distributor').val();
+        let startDate = $('#start_date').val();
+        let endDate = $('#end_date').val();
+
+        if (!distributorId) {
+            alert('Select distributor first');
+            return;
+        }
+
+        let url = "{{ route('distributor-ledger-pdf') }}" +
+            "?distributor_id=" + distributorId +
+            "&start_date=" + startDate +
+            "&end_date=" + endDate;
+
+        window.open(url, '_blank');
+    });
 </script>

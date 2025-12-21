@@ -192,9 +192,6 @@
 </div>
 
 @include('admin_panel.include.footer_include')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -522,27 +519,23 @@
     });
 </script>
 <script>
-    document.getElementById("downloadPdf").addEventListener("click", function() {
-        const element = document.querySelector(".ledger-container");
+    $('#downloadPdf').on('click', function () {
 
-        html2canvas(element).then(canvas => {
-            const imgData = canvas.toDataURL("image/png");
-            const pdf = new jspdf.jsPDF("p", "mm", "a4");
+        let vendorId  = $('#Vendor').val();
+        let startDate = $('#start_date').val();
+        let endDate   = $('#end_date').val();
 
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        if (!vendorId) {
+            alert('Select vendor first');
+            return;
+        }
 
-            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-            pdf.save("Vendor_ledger .pdf");
-        });
-    });
+        let url = "{{ route('vendor-ledger-pdf') }}"
+            + "?vendor_id=" + vendorId
+            + "&start_date=" + startDate
+            + "&end_date=" + endDate;
 
-    // Show PDF button only when result appears
-    $('#searchLedger').click(function() {
-        setTimeout(() => {
-            $('#downloadPdf').removeClass('d-none');
-        }, 500);
+        window.open(url, '_blank');
     });
 </script>
 <style>

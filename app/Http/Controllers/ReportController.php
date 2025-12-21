@@ -18,6 +18,7 @@ use App\Models\CustomerRecovery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
@@ -170,6 +171,128 @@ class ReportController extends Controller
         ]);
     }
 
+    public function DistributorLedgerPdf(Request $request)
+    {
+        $distributorId = $request->distributor_id;
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date . ' 23:59:59';
+
+        $distributor = Distributor::findOrFail($distributorId);
+
+        /* ================= OPENING BALANCE ================= */
+
+        $ledger = DB::table('distributor_ledgers')
+            ->where('distributor_id', $distributorId)
+            ->first();
+
+        $baseOpening = $ledger->opening_balance ?? 0;
+
+        $previousSales = DB::table('sales')
+            ->where('distributor_id', $distributorId)
+            ->where('Date', '<', $startDate)
+            ->sum('net_amount');
+
+        $previousRecoveries = DB::table('recoveries')
+            ->where('distributor_ledger_id', $distributorId)
+            ->where('date', '<', $startDate)
+            ->sum('amount_paid');
+
+        $previousReturns = DB::table('sale_returns')
+            ->where('sale_type', 'distributor')
+            ->where('party_id', $distributorId)
+            ->where('created_at', '<', $startDate)
+            ->sum('total_return_amount');
+
+        $openingBalance = $baseOpening + $previousSales - ($previousRecoveries + $previousReturns);
+
+        /* ================= FETCH DATA ================= */
+
+        $sales = DB::table('sales')
+            ->where('distributor_id', $distributorId)
+            ->whereBetween('Date', [$startDate, $endDate])
+            ->get();
+
+        $recoveries = DB::table('recoveries')
+            ->where('distributor_ledger_id', $distributorId)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->get();
+
+        $saleReturns = DB::table('sale_returns')
+            ->where('sale_type', 'distributor')
+            ->where('party_id', $distributorId)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->get();
+
+        $transfers = DB::table('distributor_balance_transfers')
+            ->where('to_distributor', $distributorId)
+            ->whereBetween('transfer_date', [$startDate, $endDate])
+            ->get();
+
+        /* ================= MERGE + SORT (JS SAME) ================= */
+
+        $entries = collect();
+
+        foreach ($sales as $s) {
+            $entries->push([
+                'type' => 'sale',
+                'date' => $s->Date,
+                'invoice' => $s->invoice_number,
+                'booker' => $s->Booker,
+                'items' => json_decode($s->item, true) ?? [],
+                'cartons' => json_decode($s->carton_qty, true) ?? [],
+                'pcs' => json_decode($s->pcs, true) ?? [],
+                'liters' => json_decode($s->liter, true) ?? [],
+                'rates' => json_decode($s->rate, true) ?? [],
+            ]);
+        }
+
+        foreach ($recoveries as $r) {
+            $entries->push([
+                'type' => 'recovery',
+                'date' => $r->date,
+                'amount' => $r->amount_paid,
+                'remarks' => $r->remarks ?? $r->salesman,
+            ]);
+        }
+
+        foreach ($saleReturns as $sr) {
+            $entries->push([
+                'type' => 'sale_return',
+                'date' => $sr->created_at,
+                'invoice' => $sr->invoice_number,
+                'amount' => $sr->total_return_amount,
+                'items' => json_decode($sr->item ?? '[]', true),
+                'cartons' => json_decode($sr->carton_qty ?? '[]', true),
+                'pcs' => json_decode($sr->pcs ?? '[]', true),
+                'liters' => json_decode($sr->liter ?? '[]', true),
+                'rates' => json_decode($sr->rate ?? '[]', true),
+            ]);
+        }
+
+        foreach ($transfers as $t) {
+            $entries->push([
+                'type' => 'transfer',
+                'date' => $t->transfer_date,
+                'amount' => $t->amount,
+                'from' => $t->from_distributor,
+                'reason' => $t->reason,
+            ]);
+        }
+
+        $entries = $entries->sortBy('date')->values();
+
+        /* ================= SEND TO PDF ================= */
+
+        $pdf = Pdf::loadView('admin_panel.reports.pdfs.distributor_ledger', [
+            'distributor' => $distributor,
+            'entries' => $entries,
+            'openingBalance' => $openingBalance,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Distributor-Detailed-Ledger.pdf');
+    }
 
 
 
@@ -315,6 +438,101 @@ class ReportController extends Controller
         ]);
     }
 
+    public function vendorLedgerPdf(Request $request)
+    {
+        $vendorId  = $request->vendor_id;
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date . ' 23:59:59';
+
+        $vendor = Vendor::findOrFail($vendorId);
+
+        /* ===== OPENING BALANCE (same as screen) ===== */
+        $ledger = DB::table('vendor_ledgers')
+            ->where('vendor_id', $vendorId)
+            ->first();
+
+        $baseOpening = $ledger->opening_balance ?? 0;
+
+        $previousPurchases = DB::table('purchases')
+            ->where('party_name', $vendorId)
+            ->where('purchase_date', '<', $startDate)
+            ->sum('grand_total');
+
+        $previousPayments = DB::table('vendor_payments')
+            ->where('vendor_id', $vendorId)
+            ->where('payment_date', '<', $startDate)
+            ->sum('amount_paid');
+
+        $previousReturns = DB::table('purchase_returns')
+            ->where('party_name', $vendorId)
+            ->where('return_date', '<', $startDate)
+            ->get()
+            ->sum(fn($r) => collect(json_decode($r->return_amount, true))->sum());
+
+        $previousBuilties = DB::table('vendor_builties')
+            ->where('vendor_id', $vendorId)
+            ->where('date', '<', $startDate)
+            ->sum('amount');
+
+        $openingBalance = $baseOpening
+            + ($previousPurchases + $previousBuilties)
+            - ($previousPayments + $previousReturns);
+
+        /* ===== MERGE ENTRIES (same as ledger JS) ===== */
+        $entries = collect();
+
+        foreach (DB::table('purchases')->where('party_name', $vendorId)->whereBetween('purchase_date', [$startDate, $endDate])->get() as $p) {
+            $entries->push([
+                'type' => 'purchase',
+                'date' => $p->purchase_date,
+                'invoice' => $p->invoice_number,
+                'items' => json_decode($p->item, true) ?? [],
+                'cartons' => json_decode($p->carton_qty, true) ?? [],
+                'pcs' => json_decode($p->pcs, true) ?? [],
+                'liters' => json_decode($p->liter, true) ?? [],
+                'rates' => json_decode($p->rate, true) ?? [],
+            ]);
+        }
+
+        foreach (DB::table('vendor_payments')->where('vendor_id', $vendorId)->whereBetween('payment_date', [$startDate, $endDate])->get() as $r) {
+            $entries->push([
+                'type' => 'recovery',
+                'date' => $r->payment_date,
+                'amount' => $r->amount_paid,
+                'remarks' => $r->description,
+            ]);
+        }
+
+        foreach (DB::table('purchase_returns')->where('party_name', $vendorId)->whereBetween('return_date', [$startDate, $endDate])->get() as $r) {
+            $entries->push([
+                'type' => 'return',
+                'date' => $r->return_date,
+                'invoice' => $r->invoice_number,
+                'amount' => collect(json_decode($r->return_amount, true))->sum(),
+            ]);
+        }
+
+        foreach (DB::table('vendor_builties')->where('vendor_id', $vendorId)->whereBetween('date', [$startDate, $endDate])->get() as $b) {
+            $entries->push([
+                'type' => 'builty',
+                'date' => $b->date,
+                'amount' => $b->amount,
+                'description' => $b->description,
+            ]);
+        }
+
+        $entries = $entries->sortBy('date')->values();
+
+        $pdf = Pdf::loadView('admin_panel.reports.pdfs.vendor_ledger', [
+            'vendor' => $vendor,
+            'entries' => $entries,
+            'openingBalance' => $openingBalance,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Vendor-Ledger.pdf');
+    }
 
 
 
@@ -479,6 +697,147 @@ class ReportController extends Controller
         ]);
     }
 
+    public function customerLedgerPdf(Request $request)
+    {
+        $CustomerId = $request->customer_id;
+        $startDate  = $request->start_date . ' 00:00:00';
+        $endDate    = $request->end_date . ' 23:59:59';
+
+        $customer = Customer::findOrFail($CustomerId);
+
+        /* ================= OPENING BALANCE (SAME AS SCREEN) ================= */
+        $ledger = DB::table('customer_ledgers')
+            ->where('customer_id', $CustomerId)
+            ->select('opening_balance')
+            ->first();
+
+        $baseOpening = $ledger->opening_balance ?? 0;
+
+        $previousSales = DB::table('local_sales')
+            ->where('customer_id', $CustomerId)
+            ->where('Date', '<', $startDate)
+            ->sum('net_amount');
+
+        $previousRecoveries = DB::table('customer_recoveries')
+            ->where('customer_ledger_id', $CustomerId)
+            ->where('date', '<', $startDate)
+            ->sum('amount_paid');
+
+        $previousReturns = DB::table('sale_returns')
+            ->where('sale_type', 'customer')
+            ->where('party_id', $CustomerId)
+            ->where('created_at', '<', $startDate)
+            ->sum('total_return_amount');
+
+        $openingBalance = $baseOpening
+            + $previousSales
+            - ($previousRecoveries + $previousReturns);
+
+        /* ================= ENTRIES (SAME FLOW AS AJAX) ================= */
+        $entries = collect();
+
+        // SALES (invoice based – net_amount ONLY)
+        $localSales = DB::table('local_sales')
+            ->where('customer_id', $CustomerId)
+            ->whereBetween('Date', [$startDate, $endDate])
+            ->select(
+                'invoice_number',
+                'Date',
+                'Saleman',
+                'net_amount',
+                'item',
+                'carton_qty',
+                'pcs',
+                'liter',
+                'rate'
+            )
+            ->get();
+
+        foreach ($localSales as $s) {
+            $entries->push([
+                'type'    => 'sale',
+                'date'    => $s->Date,
+                'invoice' => $s->invoice_number,
+                'saleman' => $s->Saleman,
+                'amount'  => $s->net_amount, // ⭐ EXACT SAME AS SCREEN
+                'items'   => json_decode($s->item, true) ?? [],
+                'cartons' => json_decode($s->carton_qty, true) ?? [],
+                'pcs'     => json_decode($s->pcs, true) ?? [],
+                'liters'  => json_decode($s->liter, true) ?? [],
+                'rates'   => json_decode($s->rate, true) ?? [],
+            ]);
+        }
+
+        // RECOVERIES
+        $recoveries = DB::table('customer_recoveries')
+            ->where('customer_ledger_id', $CustomerId)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->select('amount_paid', 'date', 'remarks', 'salesman')
+            ->get();
+
+        foreach ($recoveries as $r) {
+            $entries->push([
+                'type'   => 'recovery',
+                'date'   => $r->date,
+                'amount' => $r->amount_paid,
+                'desc'   => $r->remarks ?? $r->salesman,
+            ]);
+        }
+
+        $srSelect = ['invoice_number', 'created_at', 'total_return_amount'];
+        $maybeCols = ['item', 'carton_qty', 'pcs', 'liter', 'rate'];
+
+        foreach ($maybeCols as $col) {
+            if (Schema::hasColumn('sale_returns', $col)) {
+                $srSelect[] = $col;
+            }
+        }
+
+        $saleReturnsRaw = DB::table('sale_returns')
+            ->where('sale_type', 'customer')
+            ->where('party_id', $CustomerId)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->select($srSelect)
+            ->get();
+
+        $saleReturns = $saleReturnsRaw->map(function ($r) {
+            $mapVal = function ($obj, $col) {
+                if (!isset($obj->$col)) return [];
+                $arr = json_decode($obj->$col, true);
+                return is_array($arr) ? $arr : [];
+            };
+
+            return [
+                'type'    => 'sale_return',
+                'date'    => $r->created_at,
+                'invoice' => $r->invoice_number,
+                'amount'  => $r->total_return_amount,
+                'items'   => $mapVal($r, 'item'),
+                'cartons' => $mapVal($r, 'carton_qty'),
+                'pcs'     => $mapVal($r, 'pcs'),
+                'liters'  => $mapVal($r, 'liter'),
+                'rates'   => $mapVal($r, 'rate'),
+            ];
+        });
+
+        foreach ($saleReturns as $sr) {
+            $entries->push($sr);
+        }
+
+        // SAME SORTING AS JS
+        $entries = $entries->sortBy('date')->values();
+
+        /* ================= PDF ================= */
+        $pdf = Pdf::loadView('admin_panel.reports.pdfs.customer_ledger', [
+            'customer'       => $customer,
+            'entries'        => $entries,
+            'openingBalance' => $openingBalance,
+            'startDate'      => $startDate,
+            'endDate'        => $endDate,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Customer-Ledger.pdf');
+    }
 
 
     public function stock_Record()

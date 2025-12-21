@@ -201,14 +201,18 @@ Route::put('/local/sale/update/{id}', [LocalSaleController::class, 'localsaleupd
 // Reporting
 Route::get('/Distributor-Ledger-Record', [ReportController::class, 'Distributor_Ledger_Record'])->name('Distributor-Ledger-Record');
 Route::get('/fetch-distributor-ledger', [ReportController::class, 'fetchDistributorLedger'])->name('fetch-distributor-ledger');
+// routes/web.php
+Route::get('reports/distributor-ledger/pdf', [ReportController::class, 'DistributorLedgerPdf'])->name('distributor-ledger-pdf');
+
 
 Route::get('/vendor-Ledger-Record', [ReportController::class, 'vendor_Ledger_Record'])->name('vendor-Ledger-Record');
 Route::get('/fetch-vendor-ledger', [ReportController::class, 'fetchvendorLedger'])->name('fetch-vendor-ledger');
-
+Route::get('/vendor-ledger-pdf', [ReportController::class, 'vendorLedgerPdf'])->name('vendor-ledger-pdf');
 
 
 Route::get('/Customer-Ledger-Record', [ReportController::class, 'Customer_Ledger_Record'])->name('Customer-Ledger-Record');
 Route::get('/fetch-Customer-ledger', [ReportController::class, 'fetchCustomerledger'])->name('fetch-Customer-ledger');
+Route::get('/customer-ledger-pdf', [ReportController::class, 'customerLedgerPdf'])->name('customer-ledger-pdf');
 
 Route::get('/stock-Record', [ReportController::class, 'stock_Record'])->name('stock-Record');
 Route::get('/get-items-report/{subcategory}', [ReportController::class, 'getItems'])->name('get.items.report');
