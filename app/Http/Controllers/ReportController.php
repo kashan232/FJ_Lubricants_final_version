@@ -15,6 +15,7 @@ use App\Models\LocalSale;
 use App\Models\Distributor;
 use Illuminate\Http\Request;
 use App\Models\CustomerRecovery;
+use App\Models\DistributorProduct;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -861,14 +862,32 @@ class ReportController extends Controller
 
     public function getItemDetails(Request $request)
     {
+        $user = Auth::user();
+
+        // 🔑 ROLE BASED SWITCH (YEHI MAIN JAGAH HAI)
+        if ($user->usertype === 'admin') {
+            return $this->adminStockReport($request);
+        }
+
+        if ($user->usertype === 'distributor') {
+            return $this->distributorStockReport($request, $user->user_id);
+        }
+
+        return response()->json([]);
+    }
+
+    private function adminStockReport(Request $request)
+    {
         $query = Product::query();
 
         if ($request->category !== 'all') {
             $query->where('category', $request->category);
         }
+
         if ($request->subcategory !== 'all') {
             $query->where('sub_category', $request->subcategory);
         }
+
         if ($request->itemCode !== 'all') {
             $query->where('item_code', $request->itemCode);
         }
@@ -876,136 +895,191 @@ class ReportController extends Controller
         $items = $query->get();
 
         foreach ($items as $item) {
-            // 1️⃣ **Total Purchased Quantity**
-            $purchaseData = Purchase::whereJsonContains('item', $item->item_name)->get();
+
+            /* ================= PURCHASE ================= */
             $totalPurchasedQty = 0;
+            $purchaseData = Purchase::whereJsonContains('item', $item->item_name)->get();
 
             foreach ($purchaseData as $purchase) {
-                $itemNames = json_decode($purchase->item, true);
-                $cartonQtyArray = json_decode($purchase->carton_qty, true);
+                $itemsArr  = json_decode($purchase->item, true);
+                $qtyArr    = json_decode($purchase->carton_qty, true);
 
-                if (is_array($itemNames) && is_array($cartonQtyArray)) {
-                    foreach ($itemNames as $index => $purchasedItem) {
-                        if ($purchasedItem === $item->item_name) {
-                            $totalPurchasedQty += isset($cartonQtyArray[$index]) ? intval($cartonQtyArray[$index]) : 0;
-                        }
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalPurchasedQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
             }
 
-            // 2️⃣ **Total Distributor Sale Quantity**
-            $salesData = Sale::whereJsonContains('item', $item->item_name)->get();
+            /* ================= DISTRIBUTOR SALE ================= */
             $totalDistributorSoldQty = 0;
+            $salesData = Sale::whereJsonContains('item', $item->item_name)->get();
 
             foreach ($salesData as $sale) {
-                $itemNames = json_decode($sale->item, true);
-                $cartonQtyArray = json_decode($sale->carton_qty, true);
+                $itemsArr = json_decode($sale->item, true);
+                $qtyArr   = json_decode($sale->carton_qty, true);
 
-                if (is_array($itemNames) && is_array($cartonQtyArray)) {
-                    foreach ($itemNames as $index => $soldItem) {
-                        if ($soldItem === $item->item_name) {
-                            $totalDistributorSoldQty += isset($cartonQtyArray[$index]) ? intval($cartonQtyArray[$index]) : 0;
-                        }
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalDistributorSoldQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
             }
 
-            // 3️⃣ **Total Local Sale Quantity**
-            $localSalesData = LocalSale::whereJsonContains('item', $item->item_name)->get();
+            /* ================= LOCAL SALE ================= */
             $totalLocalSoldQty = 0;
+            $localSales = LocalSale::whereJsonContains('item', $item->item_name)->get();
 
-            foreach ($localSalesData as $localSale) {
-                $itemNames = json_decode($localSale->item, true);
-                $cartonQtyArray = json_decode($localSale->carton_qty, true);
+            foreach ($localSales as $sale) {
+                $itemsArr = json_decode($sale->item, true);
+                $qtyArr   = json_decode($sale->carton_qty, true);
 
-                if (is_array($itemNames) && is_array($cartonQtyArray)) {
-                    foreach ($itemNames as $index => $soldItem) {
-                        if ($soldItem === $item->item_name) {
-                            $totalLocalSoldQty += isset($cartonQtyArray[$index]) ? intval($cartonQtyArray[$index]) : 0;
-                        }
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalLocalSoldQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
             }
 
-            // 4️⃣ **Total Purchase Return Quantity**
-            $returnData = DB::table('purchase_returns')->whereJsonContains('item', $item->item_name)->get();
+            /* ================= PURCHASE RETURN ================= */
             $totalPurchaseReturnQty = 0;
-
-            foreach ($returnData as $return) {
-                $itemNames = json_decode($return->item, true);
-                $returnQtyArray = json_decode($return->return_qty, true);
-
-                if (is_array($itemNames) && is_array($returnQtyArray)) {
-                    foreach ($itemNames as $index => $returnItem) {
-                        if ($returnItem === $item->item_name) {
-                            $totalPurchaseReturnQty += isset($returnQtyArray[$index]) ? intval($returnQtyArray[$index]) : 0;
-                        }
-                    }
-                }
-            }
-
-            // 5️⃣ **Total Distributor Return Quantity**
-            $distributorReturns = DB::table('sale_returns')
-                ->where('sale_type', 'distributor')
-                ->where('item_names', 'LIKE', '%' . $item->item_name . '%')
+            $purchaseReturns = DB::table('purchase_returns')
+                ->whereJsonContains('item', $item->item_name)
                 ->get();
 
-            $totalDistributorReturnQty = 0;
+            foreach ($purchaseReturns as $ret) {
+                $itemsArr = json_decode($ret->item, true);
+                $qtyArr   = json_decode($ret->return_qty, true);
 
-            foreach ($distributorReturns as $return) {
-                $itemNames = json_decode($return->item_names, true);
-                $cartonQtyArray = json_decode($return->carton_qty, true);
-
-                // Handle if not JSON (plain string case)
-                if (!is_array($itemNames)) {
-                    $itemNames = [$return->item_names];
-                    $cartonQtyArray = [$return->carton_qty];
-                }
-
-                foreach ($itemNames as $index => $returnItem) {
-                    if ($returnItem === $item->item_name) {
-                        $totalDistributorReturnQty += isset($cartonQtyArray[$index]) ? intval($cartonQtyArray[$index]) : 0;
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalPurchaseReturnQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
             }
 
+            /* ================= DISTRIBUTOR RETURN ================= */
+            $totalDistributorReturnQty = 0;
+            $distReturns = DB::table('sale_returns')
+                ->where('sale_type', 'distributor')
+                ->whereJsonContains('item_names', $item->item_name)
+                ->get();
 
-            // 6️⃣ **Total Local Return Quantity**
+            foreach ($distReturns as $ret) {
+                $itemsArr = json_decode($ret->item_names, true);
+                $qtyArr   = json_decode($ret->carton_qty, true);
+
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalDistributorReturnQty += (int)($qtyArr[$i] ?? 0);
+                    }
+                }
+            }
+
+            /* ================= LOCAL RETURN ================= */
+            $totalLocalReturnQty = 0;
             $localReturns = DB::table('sale_returns')
                 ->where('sale_type', 'customer')
-                ->where('item_names', 'LIKE', '%' . $item->item_name . '%')
+                ->whereJsonContains('item_names', $item->item_name)
                 ->get();
 
-            $totalLocalReturnQty = 0;
+            foreach ($localReturns as $ret) {
+                $itemsArr = json_decode($ret->item_names, true);
+                $qtyArr   = json_decode($ret->carton_qty, true);
 
-            foreach ($localReturns as $return) {
-                $itemNames = json_decode($return->item_names, true);
-                $cartonQtyArray = json_decode($return->carton_qty, true);
-
-                if (!is_array($itemNames)) {
-                    $itemNames = [$return->item_names];
-                    $cartonQtyArray = [$return->carton_qty];
-                }
-
-                foreach ($itemNames as $index => $returnItem) {
-                    if ($returnItem === $item->item_name) {
-                        $totalLocalReturnQty += isset($cartonQtyArray[$index]) ? intval($cartonQtyArray[$index]) : 0;
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $item->item_name) {
+                        $totalLocalReturnQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
             }
 
-            // ✅ Assign the Correct Values (Separate Counts)
-            $item->total_purchased = $totalPurchasedQty;
-            $item->total_purchase_return = $totalPurchaseReturnQty;
-            $item->total_distributor_sold = $totalDistributorSoldQty;
-            $item->total_distributor_return = $totalDistributorReturnQty; // New Line
-            $item->total_local_sold = $totalLocalSoldQty;
-            $item->total_local_return = $totalLocalReturnQty; // New Line
+            /* ================= ASSIGN ================= */
+            $item->total_purchased           = $totalPurchasedQty;
+            $item->total_purchase_return     = $totalPurchaseReturnQty;
+            $item->total_distributor_sold    = $totalDistributorSoldQty;
+            $item->total_distributor_return  = $totalDistributorReturnQty;
+            $item->total_local_sold          = $totalLocalSoldQty;
+            $item->total_local_return        = $totalLocalReturnQty;
         }
 
         return response()->json($items);
     }
 
+    private function distributorStockReport(Request $request, $distributorId)
+    {
+        $products = DistributorProduct::where('distributor_id', $distributorId)->get();
+
+        foreach ($products as $product) {
+
+            /* ===== ADMIN → DISTRIBUTOR (PURCHASE) ===== */
+            $purchasedQty = 0;
+            $adminSales = Sale::where('distributor_id', $distributorId)
+                ->whereJsonContains('item', $product->item)
+                ->get();
+
+            foreach ($adminSales as $sale) {
+                $itemsArr = json_decode($sale->item, true);
+                $qtyArr   = json_decode($sale->carton_qty, true);
+
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $product->item) {
+                        $purchasedQty += (int)($qtyArr[$i] ?? 0);
+                    }
+                }
+            }
+
+            /* ===== DISTRIBUTOR → LOCAL SALE ===== */
+            $soldQty = 0;
+            $localSales = LocalSale::where('distributor_id', $distributorId)
+                ->whereJsonContains('item', $product->item)
+                ->get();
+
+            foreach ($localSales as $sale) {
+                $itemsArr = json_decode($sale->item, true);
+                $qtyArr   = json_decode($sale->carton_qty, true);
+
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $product->item) {
+                        $soldQty += (int)($qtyArr[$i] ?? 0);
+                    }
+                }
+            }
+
+            /* ===== RETURNS ===== */
+            $returnQty = 0;
+            $returns = DB::table('sale_returns')
+                ->where('sale_type', 'customer')
+                ->where('distributor_id', $distributorId)
+                ->whereJsonContains('item_names', $product->item)
+                ->get();
+
+            foreach ($returns as $ret) {
+                $itemsArr = json_decode($ret->item_names, true);
+                $qtyArr   = json_decode($ret->carton_qty, true);
+
+                foreach ($itemsArr ?? [] as $i => $name) {
+                    if ($name === $product->item) {
+                        $returnQty += (int)($qtyArr[$i] ?? 0);
+                    }
+                }
+            }
+
+            /* ===== FINAL BALANCE ===== */
+            $balanceQty = ($product->initial_stock + $purchasedQty)
+                - ($soldQty - $returnQty);
+
+            $product->purchased_qty = $purchasedQty;
+            $product->sold_qty      = $soldQty;
+            $product->return_qty    = $returnQty;
+            $product->balance_qty   = $balanceQty;
+
+            // ❗ Distributor ke liye RETAIL VALUE
+            $product->stock_value   = $balanceQty * $product->price;
+        }
+
+        return response()->json($products);
+    }
     public function date_wise_recovery_report()
     {
         if (!Auth::check()) {

@@ -1,4 +1,8 @@
 @include('admin_panel.include.header_include')
+@php
+$isAdmin = auth()->user()->usertype === 'admin';
+$isDistributor = auth()->user()->usertype === 'distributor';
+@endphp
 <style>
     table {
         font-size: 13px;
@@ -90,29 +94,54 @@
 
                     <div class="table-responsive">
                         <table class="table table-bordered mt-4" id="stockReport" style="border: 1px solid #dee2e6;">
-                            <thead class="bg-gray text-white">
+                            <thead>
                                 <tr>
                                     <th rowspan="2">Code</th>
                                     <th rowspan="2">Name</th>
-                                    <th colspan="3" class="text-center sub-group-heading">Opening</th>
-                                    <th colspan="2" class="text-center sub-group-heading">Purchased</th>
-                                    <th colspan="4" class="text-center sub-group-heading">Sale</th>
-                                    <th colspan="2" class="text-center sub-group-heading">Balance</th>
-                                    <th colspan="3" class="text-center sub-group-heading">Balance Amount</th>
+
+                                    @if($isAdmin)
+                                    <th colspan="3" class="sub-group-heading">Opening</th>
+                                    @endif
+
+                                    <th colspan="2" class="sub-group-heading">
+                                        {{ $isDistributor ? 'Purchased (Admin Sale)' : 'Purchased' }}
+                                    </th>
+
+                                    <th colspan="{{ $isAdmin ? 4 : 2 }}" class="sub-group-heading">Sale</th>
+
+                                    <th colspan="2" class="sub-group-heading">Balance</th>
+
+                                    <th colspan="{{ $isAdmin ? 3 : 2 }}" class="sub-group-heading">Balance Amount</th>
                                 </tr>
+
                                 <tr>
                                     <th class="sub-heading">Size</th>
                                     <th class="sub-heading">Packing</th>
+
+                                    @if($isAdmin)
                                     <th class="sub-heading">Qty</th>
+                                    @endif
+
                                     <th class="sub-heading">Qty</th>
                                     <th class="sub-heading">Returned Qty</th>
+
                                     <th class="sub-heading">Sold Qty</th>
+
+                                    @if($isAdmin)
                                     <th class="sub-heading">Return Qty</th>
                                     <th class="sub-heading">Local Qty</th>
                                     <th class="sub-heading">Local Return Qty</th>
+                                    @endif
+
                                     <th class="sub-heading">Ctn</th>
                                     <th class="sub-heading">Litre</th>
+
+                                    @if($isAdmin)
                                     <th class="sub-heading">W.Price</th>
+                                    @else
+                                    <th class="sub-heading">Retail Price</th>
+                                    @endif
+
                                     <th class="sub-heading">Pcs</th>
                                     <th class="sub-heading">Stock Value</th>
                                 </tr>
@@ -254,23 +283,36 @@
                     let formattedLiters = liters % 1 === 0 ? liters.toFixed(0) : liters.toFixed(2);
 
                     tableContent += `<tr>
-        <td>${item.item_code}</td>
-        <td>${item.item_name}</td>
-        <td>${item.size}</td>
-        <td>${item.pcs_in_carton}</td>
-        <td>${item.opening_carton_quantity}</td>
-        <td>${item.total_purchased ?? 'N/A'}</td>
-        <td>${item.total_purchase_return ?? 'N/A'}</td>
-        <td>${item.total_distributor_sold ?? 'N/A'}</td>
-        <td>${item.total_distributor_return ?? 'N/A'}</td>
-        <td>${item.total_local_sold ?? 'N/A'}</td>
-        <td>${item.total_local_return ?? 'N/A'}</td>
-        <td>${item.carton_quantity}</td>
-        <td>${formattedLiters}</td>
-        <td>${item.wholesale_price}</td>
-        <td>${item.initial_stock}</td>
-        <td class="total-stock-value">${stockValue.toFixed(2)}</td>
-    </tr>`;
+    <td>${item.item_code ?? ''}</td>
+    <td>${item.item_name ?? item.item}</td>
+    <td>${item.size ?? ''}</td>
+    <td>${item.pcs_in_carton ?? item.pcs_carton ?? ''}</td>
+
+    ${@json($isAdmin) ? `
+        <td>${item.opening_carton_quantity ?? 0}</td>
+    ` : ``}
+
+    <td>${item.total_purchased ?? item.purchased_qty ?? 0}</td>
+    <td>${item.total_purchase_return ?? item.return_qty ?? 0}</td>
+
+    <td>${item.total_distributor_sold ?? item.sold_qty ?? 0}</td>
+
+    ${@json($isAdmin) ? `
+        <td>${item.total_distributor_return ?? 0}</td>
+        <td>${item.total_local_sold ?? 0}</td>
+        <td>${item.total_local_return ?? 0}</td>
+    ` : ``}
+
+    <td>${item.balance_qty ?? item.carton_quantity ?? 0}</td>
+    <td>${formattedLiters}</td>
+
+    <td>
+        ${@json($isAdmin) ? item.wholesale_price : item.price}
+    </td>
+
+    <td>${item.initial_stock ?? 0}</td>
+    <td class="total-stock-value">${stockValue.toFixed(2)}</td>
+</tr>`;
                 });
 
                 // ✅ Footer Update:
