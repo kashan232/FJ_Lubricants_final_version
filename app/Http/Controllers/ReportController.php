@@ -864,13 +864,16 @@ class ReportController extends Controller
     {
         $user = Auth::user();
 
-        // 🔑 ROLE BASED SWITCH (YEHI MAIN JAGAH HAI)
         if ($user->usertype === 'admin') {
             return $this->adminStockReport($request);
         }
 
         if ($user->usertype === 'distributor') {
-            return $this->distributorStockReport($request, $user->user_id);
+            return $this->distributorStockReport(
+                $request,
+                $user->user_id,   // distributor_id (19)
+                $user->id         // user_id (41)
+            );
         }
 
         return response()->json([]);
@@ -1006,80 +1009,204 @@ class ReportController extends Controller
         return response()->json($items);
     }
 
-    private function distributorStockReport(Request $request, $distributorId)
+    // private function distributorStockReport(Request $request, $distributorId, $userId)
+    // {
+    //     // ✅ SINGLE SOURCE OF TRUTH
+    //     $products = DistributorProduct::where('distributor_id', $distributorId)->get();
+
+    //     foreach ($products as $product) {
+
+    //         /* ================= PURCHASED (ADMIN SALE) =================
+    //        🔥 DIRECT FROM distributor_products
+    //     */
+    //         $purchasedCarton = (int) $product->carton_quantity;
+    //         $purchasedPcs    = (int) ($product->pcs ?? 0);
+
+    //         /* ================= DISTRIBUTOR → LOCAL SALE ================= */
+    //         $soldCarton = 0;
+    //         $soldPcs    = 0;
+
+    //         $localSales = LocalSale::where('admin_or_user_id', $userId)
+    //             ->where('identify', 'distributor')
+    //             ->whereJsonContains('item', $product->item)
+    //             ->get();
+
+    //         foreach ($localSales as $sale) {
+    //             $itemsArr = json_decode($sale->item, true);
+    //             $ctnArr   = json_decode($sale->carton_qty, true);
+    //             $pcsArr   = json_decode($sale->pcs, true);
+
+    //             foreach ($itemsArr ?? [] as $i => $name) {
+    //                 if ($name === $product->item) {
+    //                     $soldCarton += (int)($ctnArr[$i] ?? 0);
+    //                     $soldPcs    += (int)($pcsArr[$i] ?? 0);
+    //                 }
+    //             }
+    //         }
+    //         /* ================= RETURNS ================= */
+    //         $returnCarton = 0;
+    //         $returnPcs    = 0;
+
+    //         $returns = DB::table('sale_returns')
+    //             ->where('sale_type', 'customer')
+    //             ->where('admin_or_user_id', $userId)
+    //             ->whereJsonContains('item_names', $product->item)
+    //             ->get();
+
+    //         foreach ($returns as $ret) {
+    //             $itemsArr = json_decode($ret->item_names, true);
+    //             $ctnArr   = json_decode($ret->carton_qty, true);
+    //             $pcsArr   = json_decode($ret->pcs, true);
+
+    //             foreach ($itemsArr ?? [] as $i => $name) {
+    //                 if ($name === $product->item) {
+    //                     $returnCarton += (int)($ctnArr[$i] ?? 0);
+    //                     $returnPcs    += (int)($pcsArr[$i] ?? 0);
+    //                 }
+    //             }
+    //         }
+
+    //         /* ================= FINAL BALANCE ================= */
+    //         $balanceCarton = $product->initial_stock
+    //             + $purchasedCarton
+    //             - $soldCarton
+    //             + $returnCarton;
+
+    //         $balancePcs = $purchasedPcs - $soldPcs + $returnPcs;
+
+    //         /* ================= NORMALIZE FOR BLADE ================= */
+    //         $product->item_code     = $product->code;
+    //         $product->item_name     = $product->item;
+    //         $product->size          = $product->size;
+    //         $product->pcs_in_carton = $product->pcs_carton;
+
+    //         // Purchased
+    //         $product->purchased_carton = $purchasedCarton;
+    //         $product->purchased_pcs    = $purchasedPcs;
+
+    //         // Sale
+    //         $product->sold_carton = $soldCarton;
+    //         $product->sold_pcs    = $soldPcs;
+
+    //         // Balance
+    //         $product->balance_carton = $balanceCarton;
+    //         $product->balance_pcs    = $balancePcs;
+
+    //         // Price
+    //         $product->retail_price = $product->price;
+
+    //         // Value
+    //         $product->stock_value = $balanceCarton * $product->price;
+    //     }
+
+    //     return response()->json($products);
+    // }
+    private function distributorStockReport(Request $request, $distributorId, $userId)
     {
+        // 🔹 Distributor ka current stock (snapshot)
         $products = DistributorProduct::where('distributor_id', $distributorId)->get();
 
         foreach ($products as $product) {
 
-            /* ===== ADMIN → DISTRIBUTOR (PURCHASE) ===== */
-            $purchasedQty = 0;
-            $adminSales = Sale::where('distributor_id', $distributorId)
-                ->whereJsonContains('item', $product->item)
-                ->get();
+            /* ================= PURCHASED (ADMIN SALE SNAPSHOT) ================= */
+            // Distributor ke paas jitna stock hai, wahi purchased maana jayega
+            $purchasedCarton = (int) $product->carton_quantity;
+            $purchasedPcs    = (int) ($product->pcs ?? 0);
 
-            foreach ($adminSales as $sale) {
-                $itemsArr = json_decode($sale->item, true);
-                $qtyArr   = json_decode($sale->carton_qty, true);
+            /* ================= DISTRIBUTOR → LOCAL SALE ================= */
+            $soldCarton = 0;
+            $soldPcs    = 0;
 
-                foreach ($itemsArr ?? [] as $i => $name) {
-                    if ($name === $product->item) {
-                        $purchasedQty += (int)($qtyArr[$i] ?? 0);
-                    }
-                }
-            }
-
-            /* ===== DISTRIBUTOR → LOCAL SALE ===== */
-            $soldQty = 0;
-            $localSales = LocalSale::where('distributor_id', $distributorId)
+            $localSales = LocalSale::where('admin_or_user_id', $userId)
+                ->where('identify', 'distributor')
                 ->whereJsonContains('item', $product->item)
                 ->get();
 
             foreach ($localSales as $sale) {
                 $itemsArr = json_decode($sale->item, true);
-                $qtyArr   = json_decode($sale->carton_qty, true);
+                $ctnArr   = json_decode($sale->carton_qty, true);
+                $pcsArr   = json_decode($sale->pcs, true);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
                     if ($name === $product->item) {
-                        $soldQty += (int)($qtyArr[$i] ?? 0);
+                        $soldCarton += (int) ($ctnArr[$i] ?? 0);
+                        $soldPcs    += (int) ($pcsArr[$i] ?? 0);
                     }
                 }
             }
 
-            /* ===== RETURNS ===== */
-            $returnQty = 0;
+            /* ================= RETURNS (INFO ONLY) ================= */
+            $returnCarton = 0;
+            $returnPcs    = 0;
+
             $returns = DB::table('sale_returns')
                 ->where('sale_type', 'customer')
-                ->where('distributor_id', $distributorId)
+                ->where('admin_or_user_id', $userId)
                 ->whereJsonContains('item_names', $product->item)
                 ->get();
 
             foreach ($returns as $ret) {
                 $itemsArr = json_decode($ret->item_names, true);
-                $qtyArr   = json_decode($ret->carton_qty, true);
+                $ctnArr   = json_decode($ret->carton_qty, true);
+                $pcsArr   = json_decode($ret->pcs, true);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
                     if ($name === $product->item) {
-                        $returnQty += (int)($qtyArr[$i] ?? 0);
+                        $returnCarton += (int) ($ctnArr[$i] ?? 0);
+                        $returnPcs    += (int) ($pcsArr[$i] ?? 0);
                     }
                 }
             }
 
-            /* ===== FINAL BALANCE ===== */
-            $balanceQty = ($product->initial_stock + $purchasedQty)
-                - ($soldQty - $returnQty);
+           /* ================= BALANCE (SINGLE SOURCE OF TRUTH) ================= */
+            $balanceCarton = (int) $product->carton_quantity;
+            $balancePcs    = (int) ($product->pcs ?? 0);
 
-            $product->purchased_qty = $purchasedQty;
-            $product->sold_qty      = $soldQty;
-            $product->return_qty    = $returnQty;
-            $product->balance_qty   = $balanceQty;
+            /* ================= BALANCE LITER ================= */
+            $sizeText = strtolower(trim($product->size));
+            $sizeLiter = 0;
 
-            // ❗ Distributor ke liye RETAIL VALUE
-            $product->stock_value   = $balanceQty * $product->price;
+            if (str_contains($sizeText, 'ml')) {
+                $sizeLiter = ((float) preg_replace('/[^0-9.]/', '', $sizeText)) / 1000;
+            } elseif (str_contains($sizeText, 'liter') || str_contains($sizeText, 'l')) {
+                $sizeLiter = (float) preg_replace('/[^0-9.]/', '', $sizeText);
+            }
+
+            $balanceLiter = $balanceCarton * $product->pcs_carton * $sizeLiter;
+            /* ================= NORMALIZE FOR BLADE ================= */
+            $product->item_code     = $product->code;
+            $product->item_name     = $product->item;
+            $product->size          = $product->size;
+            $product->pcs_in_carton = $product->pcs_carton;
+
+            // Purchased
+            $product->purchased_carton = $purchasedCarton;
+            $product->purchased_pcs    = $purchasedPcs;
+
+            // Sale (display only)
+            $product->sold_carton   = $soldCarton;
+            $product->sold_pcs      = $soldPcs;
+
+            // Return (display only)
+            $product->return_carton = $returnCarton;
+            $product->return_pcs    = $returnPcs;
+
+            // Balance (snapshot)
+            $product->balance_carton = $balanceCarton;
+            $product->balance_pcs    = $balancePcs;
+            $product->balance_liter  = round($balanceLiter, 2);
+
+            // Price & Value
+            $product->retail_price = $product->price;
+            $product->stock_value  = $balanceCarton * $product->price;
         }
 
         return response()->json($products);
     }
+
+
+
+
     public function date_wise_recovery_report()
     {
         if (!Auth::check()) {

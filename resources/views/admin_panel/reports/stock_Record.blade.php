@@ -99,61 +99,90 @@ $isDistributor = auth()->user()->usertype === 'distributor';
                                     <th rowspan="2">Code</th>
                                     <th rowspan="2">Name</th>
 
+                                    {{-- DISTRIBUTOR DETAILS --}}
+                                    @if($isDistributor)
+                                    <th colspan="2" class="sub-group-heading">Details</th>
+                                    @endif
+
+                                    {{-- ADMIN OPENING --}}
                                     @if($isAdmin)
                                     <th colspan="3" class="sub-group-heading">Opening</th>
                                     @endif
 
+                                    {{-- PURCHASED --}}
                                     <th colspan="2" class="sub-group-heading">
                                         {{ $isDistributor ? 'Purchased (Admin Sale)' : 'Purchased' }}
                                     </th>
 
+                                    {{-- SALE --}}
                                     <th colspan="{{ $isAdmin ? 4 : 2 }}" class="sub-group-heading">Sale</th>
 
+                                    {{-- BALANCE --}}
                                     <th colspan="2" class="sub-group-heading">Balance</th>
 
-                                    <th colspan="{{ $isAdmin ? 3 : 2 }}" class="sub-group-heading">Balance Amount</th>
+                                    {{-- BALANCE AMOUNT --}}
+                                    <th colspan="3" class="sub-group-heading">Balance Amount</th>
                                 </tr>
 
                                 <tr>
+                                    {{-- DETAILS --}}
+                                    @if($isDistributor)
                                     <th class="sub-heading">Size</th>
                                     <th class="sub-heading">Packing</th>
+                                    @endif
 
+                                    {{-- OPENING --}}
                                     @if($isAdmin)
+                                    <th class="sub-heading">Size</th>
+                                    <th class="sub-heading">Packing</th>
                                     <th class="sub-heading">Qty</th>
                                     @endif
 
+                                    {{-- PURCHASED --}}
+                                    @if($isDistributor)
+                                    <th class="sub-heading">Ctn</th>
+                                    <th class="sub-heading">Pcs</th>
+                                    @else
                                     <th class="sub-heading">Qty</th>
                                     <th class="sub-heading">Returned Qty</th>
+                                    @endif
 
+                                    {{-- SALE --}}
+                                    @if($isDistributor)
+                                    <th class="sub-heading">Ctn</th>
+                                    <th class="sub-heading">Pcs</th>
+                                    @else
                                     <th class="sub-heading">Sold Qty</th>
-
-                                    @if($isAdmin)
                                     <th class="sub-heading">Return Qty</th>
                                     <th class="sub-heading">Local Qty</th>
                                     <th class="sub-heading">Local Return Qty</th>
                                     @endif
 
+                                    {{-- BALANCE --}}
                                     <th class="sub-heading">Ctn</th>
                                     <th class="sub-heading">Litre</th>
 
-                                    @if($isAdmin)
-                                    <th class="sub-heading">W.Price</th>
-                                    @else
-                                    <th class="sub-heading">Retail Price</th>
-                                    @endif
-
+                                    {{-- BALANCE AMOUNT --}}
+                                    <th class="sub-heading">{{ $isAdmin ? 'W.Price' : 'Retail Price' }}</th>
                                     <th class="sub-heading">Pcs</th>
                                     <th class="sub-heading">Stock Value</th>
                                 </tr>
                             </thead>
 
+
+
                             <tbody id="item-details" style="border: 1px solid #dee2e6;"></tbody>
 
                             <tfoot>
-                                <tr>
+                            <tr>
+                                @if($isDistributor)
                                     <td colspan="12" class="text-end fw-bold">Total Stock Value:</td>
                                     <td class="fw-bold" id="subtotalStockValue">0.00</td>
-                                </tr>
+                                @else
+                                    <td colspan="14" class="text-end fw-bold">Total Stock Value:</td>
+                                    <td class="fw-bold" id="subtotalStockValue">0.00</td>
+                                @endif
+                            </tr>
                             </tfoot>
                         </table>
                     </div>
@@ -252,7 +281,13 @@ $isDistributor = auth()->user()->usertype === 'distributor';
                 let totalDistributorReturn = 0;
                 let totalLocalReturn = 0;
                 $.each(response, function(index, item) {
-                    let stockValue = item.carton_quantity * item.wholesale_price;
+                    let stockValue = 0;
+
+                    if (@json($isDistributor)) {
+                        stockValue = (item.balance_carton ?? 0) * (item.retail_price ?? item.price ?? 0);
+                    } else {
+                        stockValue = (item.carton_quantity ?? 0) * (item.wholesale_price ?? 0);
+                    }
                     totalStockValue += stockValue;
 
                     let sizeValue = 0;
@@ -285,54 +320,87 @@ $isDistributor = auth()->user()->usertype === 'distributor';
                     tableContent += `<tr>
     <td>${item.item_code ?? ''}</td>
     <td>${item.item_name ?? item.item}</td>
-    <td>${item.size ?? ''}</td>
-    <td>${item.pcs_in_carton ?? item.pcs_carton ?? ''}</td>
+
+    ${@json($isDistributor) ? `
+        <!-- DETAILS (Distributor only) -->
+        <td>${item.size ?? ''}</td>
+        <td>${item.pcs_in_carton ?? ''}</td>
+    ` : ''}
 
     ${@json($isAdmin) ? `
+        <!-- OPENING (Admin only) -->
+        <td>${item.size ?? ''}</td>
+        <td>${item.pcs_in_carton ?? ''}</td>
         <td>${item.opening_carton_quantity ?? 0}</td>
-    ` : ``}
+    ` : ''}
 
-    <td>${item.total_purchased ?? item.purchased_qty ?? 0}</td>
-    <td>${item.total_purchase_return ?? item.return_qty ?? 0}</td>
+    <!-- PURCHASED -->
+    ${@json($isDistributor) ? `
+        <td>${item.purchased_carton ?? 0}</td>
+        <td>${item.purchased_pcs ?? 0}</td>
+    ` : `
+        <td>${item.total_purchased ?? 0}</td>
+        <td>${item.total_purchase_return ?? 0}</td>
+    `}
 
-    <td>${item.total_distributor_sold ?? item.sold_qty ?? 0}</td>
-
-    ${@json($isAdmin) ? `
+    <!-- SALE -->
+    ${@json($isDistributor) ? `
+        <td>${item.sold_carton ?? 0}</td>
+        <td>${item.sold_pcs ?? 0}</td>
+    ` : `
+        <td>${item.total_distributor_sold ?? 0}</td>
         <td>${item.total_distributor_return ?? 0}</td>
         <td>${item.total_local_sold ?? 0}</td>
         <td>${item.total_local_return ?? 0}</td>
-    ` : ``}
+    `}
 
-    <td>${item.balance_qty ?? item.carton_quantity ?? 0}</td>
+    <!-- BALANCE -->
+    <td>${item.balance_carton ?? item.carton_quantity ?? 0}</td>
     <td>${formattedLiters}</td>
 
-    <td>
-        ${@json($isAdmin) ? item.wholesale_price : item.price}
-    </td>
-
-    <td>${item.initial_stock ?? 0}</td>
+    <!-- BALANCE AMOUNT -->
+    <td>${@json($isAdmin) ? item.wholesale_price : item.price}</td>
+    <td>${item.balance_pcs ?? item.initial_stock ?? 0}</td>
     <td class="total-stock-value">${stockValue.toFixed(2)}</td>
 </tr>`;
+
                 });
 
                 // ✅ Footer Update:
                 let formattedTotalLiters = totalLiters % 1 === 0 ? totalLiters.toFixed(0) : totalLiters.toFixed(2);
+                let footerContent = '';
+                if (@json($isDistributor)) {
 
-                let footerContent = `
-<tr>
-    <td colspan="5" class="text-end fw-bold">Total:</td>
-    <td class="fw-bold">${totalPurchased}</td>
-    <td class="fw-bold">${totalPurchaseReturn}</td>
-    <td class="fw-bold">${totalDistributorSold}</td>
-    <td class="fw-bold">${totalDistributorReturn}</td>
-    <td class="fw-bold">${totalLocalSale}</td>
-    <td class="fw-bold">${totalLocalReturn}</td>
-    <td class="fw-bold">${totalCartonQty}</td>
-    <td class="fw-bold">${formattedTotalLiters}</td>
-    <td></td>
-    <td class="fw-bold">${totalStock}</td>
-    <td class="fw-bold">${totalStockValue.toFixed(2)}</td>
-</tr>`;
+                // ✅ DISTRIBUTOR FOOTER (13 columns EXACT)
+                footerContent = `
+                <tr>
+                    <td colspan="8" class="text-end fw-bold">Total:</td>
+                    <td class="fw-bold">${totalCartonQty}</td>
+                    <td class="fw-bold">${formattedTotalLiters}</td>
+                    <td></td>
+                    <td></td>
+                    <td class="fw-bold">${totalStockValue.toFixed(2)}</td>
+                </tr>`;
+
+            } else {
+
+                // ✅ ADMIN FOOTER (15 columns)
+                footerContent = `
+                <tr>
+                    <td colspan="5" class="text-end fw-bold">Total:</td>
+                    <td class="fw-bold">${totalPurchased}</td>
+                    <td class="fw-bold">${totalPurchaseReturn}</td>
+                    <td class="fw-bold">${totalDistributorSold}</td>
+                    <td class="fw-bold">${totalDistributorReturn}</td>
+                    <td class="fw-bold">${totalLocalSale}</td>
+                    <td class="fw-bold">${totalLocalReturn}</td>
+                    <td class="fw-bold">${totalCartonQty}</td>
+                    <td class="fw-bold">${formattedTotalLiters}</td>
+                    <td></td>
+                    <td class="fw-bold">${totalStock}</td>
+                    <td class="fw-bold">${totalStockValue.toFixed(2)}</td>
+                </tr>`;
+            }
 
                 $('#item-details').html(tableContent);
                 $('#stockReport tfoot').html(footerContent);

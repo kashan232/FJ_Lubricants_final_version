@@ -65,7 +65,7 @@
                                     </td>
                                     <td>{{ number_format($sale->net_amount, 2) }}</td>
                                     <td>
-                                        {{-- Admin ke liye --}}
+                                        
                                         @if(Auth::check() && Auth::user()->usertype == 'admin')
                                         <a href="{{ route('local.sale.invoice', $sale->id) }}" class="btn btn-dark btn-sm text-white">
                                             Invoice
@@ -84,7 +84,11 @@
                                             Invoice
                                         </a>
                                         @endif
-
+                                        @if(Auth::check() && Auth::user()->usertype == 'distributor')
+                                        <a href="{{ route('local.sale.invoice', $sale->id) }}" class="btn btn-dark btn-sm text-white">
+                                            Invoice
+                                        </a>
+                                        @endif
                                     </td>
                                 </tr>
                                 @endforeach
