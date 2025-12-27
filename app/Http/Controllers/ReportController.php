@@ -25,16 +25,28 @@ class ReportController extends Controller
 {
     public function Distributor_Ledger_Record()
     {
-        if (Auth::id()) {
-            $userId = Auth::id();
-            $Distributors = Distributor::where('admin_or_user_id', $userId)->get(); // Adjust according to your database structure
-            return view('admin_panel.reports.distributor_ledger_record', [
-                'Distributors' => $Distributors,
-            ]);
-        } else {
+        if (!Auth::check()) {
             return redirect()->back();
         }
+
+        $user = Auth::user();
+
+        // ✅ ADMIN → ALL DISTRIBUTORS
+        if ($user->usertype === 'admin') {
+
+            $Distributors = Distributor::where('admin_or_user_id', $user->id)->get();
+        }
+        // ✅ DISTRIBUTOR → ONLY HIS OWN RECORD
+        else {
+
+            $Distributors = Distributor::where('id', $user->user_id)->get();
+        }
+
+        return view('admin_panel.reports.distributor_ledger_record', [
+            'Distributors' => $Distributors,
+        ]);
     }
+
 
     public function fetchDistributorLedger(Request $request)
     {
@@ -1158,7 +1170,7 @@ class ReportController extends Controller
                 }
             }
 
-           /* ================= BALANCE (SINGLE SOURCE OF TRUTH) ================= */
+            /* ================= BALANCE (SINGLE SOURCE OF TRUTH) ================= */
             $balanceCarton = (int) $product->carton_quantity;
             $balancePcs    = (int) ($product->pcs ?? 0);
 
@@ -1321,13 +1333,9 @@ class ReportController extends Controller
 
     public function fetch_purchase_report(Request $request)
     {
-        $userId = Auth::id();
+        $user = Auth::user();
         $start = $request->start_date;
-        $end = $request->end_date;
-
-        $purchases = Purchase::where('admin_or_user_id', $userId)
-            ->whereBetween('purchase_date', [$start, $end])
-            ->get();
+        $end   = $request->end_date;
 
         $report = [];
         $totals = [
@@ -1337,32 +1345,79 @@ class ReportController extends Controller
             'net_amount' => 0,
         ];
 
-        foreach ($purchases as $key => $purchase) {
-            $items = json_decode($purchase->item ?? '[]');
-            $pcs_carton = json_decode($purchase->pcs_carton ?? '[]');
-            $carton_qty = json_decode($purchase->carton_qty ?? '[]');
-            $pcs = json_decode($purchase->pcs ?? '[]');
-            $liter = json_decode($purchase->liter ?? '[]');
-            $amounts = json_decode($purchase->amount ?? '[]'); // 👈 Use amount field here
+        /* ================= ADMIN ================= */
+        if ($user->usertype === 'admin') {
 
-            foreach ($items as $i => $item) {
-                $netAmount = floatval($amounts[$i] ?? 0);
+            $purchases = Purchase::where('admin_or_user_id', $user->id)
+                ->whereBetween('purchase_date', [$start, $end])
+                ->get();
 
-                $report[] = [
-                    'code' => $key + 1,
-                    'date' => \Carbon\Carbon::parse($purchase->purchase_date)->format('d-M-Y'),
-                    'item' => $item ?? 'N/A',
-                    'carton_packing' => $pcs_carton[$i] ?? 0,
-                    'carton_qty' => $carton_qty[$i] ?? 0,
-                    'pcs' => $pcs[$i] ?? 0,
-                    'liter' => $liter[$i] ?? 0,
-                    'net_amount' => $netAmount,
-                ];
+            foreach ($purchases as $key => $purchase) {
 
-                $totals['carton'] += floatval($carton_qty[$i] ?? 0);
-                $totals['pcs'] += floatval($pcs[$i] ?? 0);
-                $totals['liter'] += floatval($liter[$i] ?? 0);
-                $totals['net_amount'] += $netAmount;
+                $items        = json_decode($purchase->item ?? '[]');
+                $pcs_carton   = json_decode($purchase->pcs_carton ?? '[]');
+                $carton_qty  = json_decode($purchase->carton_qty ?? '[]');
+                $pcs          = json_decode($purchase->pcs ?? '[]');
+                $liter        = json_decode($purchase->liter ?? '[]');
+                $amounts      = json_decode($purchase->amount ?? '[]');
+
+                foreach ($items as $i => $item) {
+
+                    $netAmount = floatval($amounts[$i] ?? 0);
+
+                    $report[] = [
+                        'code' => count($report) + 1,
+                        'date' => \Carbon\Carbon::parse($purchase->purchase_date)->format('d-M-Y'),
+                        'item' => $item,
+                        'carton_packing' => $pcs_carton[$i] ?? 0,
+                        'carton_qty' => $carton_qty[$i] ?? 0,
+                        'pcs' => $pcs[$i] ?? 0,
+                        'liter' => $liter[$i] ?? 0,
+                        'net_amount' => $netAmount,
+                    ];
+
+                    $totals['carton'] += floatval($carton_qty[$i] ?? 0);
+                    $totals['pcs'] += floatval($pcs[$i] ?? 0);
+                    $totals['liter'] += floatval($liter[$i] ?? 0);
+                    $totals['net_amount'] += $netAmount;
+                }
+            }
+        }
+
+        /* ================= DISTRIBUTOR ================= */ else {
+
+            $sales = Sale::where('distributor_id', $user->user_id)
+                ->whereBetween('Date', [$start, $end])
+                ->get();
+            foreach ($sales as $sale) {
+
+                $items        = json_decode($sale->item ?? '[]');
+                $pcs_carton   = json_decode($sale->pcs_carton ?? '[]');
+                $carton_qty  = json_decode($sale->carton_qty ?? '[]');
+                $pcs          = json_decode($sale->pcs ?? '[]');
+                $liter        = json_decode($sale->liter ?? '[]');
+                $amounts      = json_decode($sale->amount ?? '[]');
+
+                foreach ($items as $i => $item) {
+
+                    $netAmount = floatval($amounts[$i] ?? 0);
+
+                    $report[] = [
+                        'code' => count($report) + 1,
+                        'date' => \Carbon\Carbon::parse($sale->Date)->format('d-M-Y'),
+                        'item' => $item,
+                        'carton_packing' => $pcs_carton[$i] ?? 0,
+                        'carton_qty' => $carton_qty[$i] ?? 0,
+                        'pcs' => $pcs[$i] ?? 0,
+                        'liter' => $liter[$i] ?? 0,
+                        'net_amount' => $netAmount,
+                    ];
+
+                    $totals['carton'] += floatval($carton_qty[$i] ?? 0);
+                    $totals['pcs'] += floatval($pcs[$i] ?? 0);
+                    $totals['liter'] += floatval($liter[$i] ?? 0);
+                    $totals['net_amount'] += $netAmount;
+                }
             }
         }
 
@@ -1371,6 +1426,7 @@ class ReportController extends Controller
             'totals' => $totals,
         ]);
     }
+
 
 
 
