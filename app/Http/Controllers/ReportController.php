@@ -1258,58 +1258,114 @@ class ReportController extends Controller
 
     public function getRecoveryReport(Request $request)
     {
-        $salesman = $request->salesman;
-        $type = $request->type;
+        $salesman  = $request->salesman;
+        $type      = $request->type;
         $startDate = $request->start_date;
-        $endDate = $request->end_date;
+        $endDate   = $request->end_date;
 
+        $user = Auth::user();
         $recoveries = [];
 
-        // Distributor Recoveries
-        if ($type == 'all' || $type == 'distributor') {
-            $query = Recovery::whereBetween('date', [$startDate, $endDate]);
+        /* =====================================================
+       🔹 ADMIN
+    ===================================================== */
+        if ($user->usertype === 'admin') {
 
-            if ($salesman !== 'All') {
-                $query->where('salesman', $salesman);
+            /* ---------- DISTRIBUTOR RECOVERIES ---------- */
+            if ($type === 'all' || $type === 'distributor') {
+
+                $query = Recovery::whereBetween('date', [$startDate, $endDate]);
+
+                if ($salesman !== 'All') {
+                    $query->where('salesman', $salesman);
+                }
+
+                $rows = $query->get();
+
+                foreach ($rows as $recovery) {
+                    $distributor = Distributor::find($recovery->distributor_ledger_id);
+
+                    $recoveries[] = [
+                        'date'        => $recovery->date,
+                        'shop_name'   => '-',
+                        'party_name'  => $distributor->Customer ?? 'N/A',
+                        'area'        => $distributor->Area ?? 'N/A',
+                        'remarks'     => $recovery->remarks,
+                        'amount_paid' => number_format($recovery->amount_paid),
+                        'salesman'    => $recovery->salesman ?? '-'
+                    ];
+                }
             }
 
-            $distributorRecoveries = $query->get();
+            /* ---------- ADMIN CUSTOMER RECOVERIES ---------- */
+            if ($type === 'all' || $type === 'customer') {
 
-            foreach ($distributorRecoveries as $recovery) {
-                $distributor = Distributor::find($recovery->distributor_ledger_id);
-                $recoveries[] = [
-                    'date'        => $recovery->date,
-                    'shop_name'   => '-', // Distributors ke liye shop name nahi hota
-                    'party_name'  => $distributor->Customer ?? 'N/A',
-                    'area'        => $distributor->Area ?? 'N/A',
-                    'remarks'     => $recovery->remarks,
-                    'amount_paid' => number_format($recovery->amount_paid),
-                    'salesman'    => $recovery->salesman ?? '-'
-                ];
+                $query = CustomerRecovery::where('admin_or_user_id', $user->id)
+                    ->whereBetween('date', [$startDate, $endDate]);
+
+                if ($salesman !== 'All') {
+                    $query->where('salesman', $salesman);
+                }
+
+                $rows = $query->get();
+
+                $customers = Customer::where('identify', 'admin')
+                    ->where('admin_or_user_id', $user->id)
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($rows as $recovery) {
+                    $c = $customers[$recovery->customer_ledger_id] ?? null;
+
+                    $recoveries[] = [
+                        'date'        => $recovery->date,
+                        'shop_name'   => $c->shop_name ?? 'N/A',
+                        'party_name'  => $c->customer_name ?? 'N/A',
+                        'area'        => $c->area ?? 'N/A',
+                        'remarks'     => $recovery->remarks,
+                        'amount_paid' => number_format($recovery->amount_paid),
+                        'salesman'    => $recovery->salesman ?? '-'
+                    ];
+                }
             }
         }
 
-        // Customer Recoveries
-        if ($type == 'all' || $type == 'customer') {
-            $query = CustomerRecovery::whereBetween('date', [$startDate, $endDate]);
+        /* =====================================================
+       🔹 DISTRIBUTOR
+    ===================================================== */
+        if ($user->usertype === 'distributor') {
 
-            if ($salesman !== 'All') {
-                $query->where('salesman', $salesman);
-            }
+            // ❌ distributor recoveries nahi
 
-            $customerRecoveries = $query->get();
+            if ($type === 'all' || $type === 'customer') {
 
-            foreach ($customerRecoveries as $recovery) {
-                $customer = Customer::find($recovery->customer_ledger_id);
-                $recoveries[] = [
-                    'date'        => $recovery->date,
-                    'shop_name'   => $customer->shop_name ?? 'N/A',   // ✅ Shop Name
-                    'party_name'  => $customer->customer_name ?? 'N/A', // ✅ Party = Customer Name
-                    'area'        => $customer->area ?? 'N/A',
-                    'remarks'     => $recovery->remarks,
-                    'amount_paid' => number_format($recovery->amount_paid),
-                    'salesman'    => $recovery->salesman ?? '-'
-                ];
+                $query = CustomerRecovery::where('admin_or_user_id', $user->id)
+                    ->whereBetween('date', [$startDate, $endDate]);
+
+                if ($salesman !== 'All') {
+                    $query->where('salesman', $salesman);
+                }
+
+                $rows = $query->get();
+
+                $customers = Customer::where('identify', 'distributor')
+                    ->where('admin_or_user_id', $user->id)
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($rows as $recovery) {
+                    $c = $customers[$recovery->customer_ledger_id] ?? null;
+
+                    $recoveries[] = [
+                        'date'        => $recovery->date,
+                        'shop_name'   => $c->shop_name ?? 'N/A',
+                        'party_name'  => $c->customer_name ?? 'N/A',
+                        'area'        => $c->area ?? 'N/A',
+                        'remarks'     => $recovery->remarks,
+                        'amount_paid' => number_format($recovery->amount_paid),
+                        'salesman'    => $recovery->salesman ?? '-'
+                    ];
+                }
             }
         }
 
@@ -1510,8 +1566,9 @@ class ReportController extends Controller
 
         $authUser = Auth::user();
 
-        // Step 1: Determine owner/admin/distributor ID
+        /* ================= OWNER DETECTION ================= */
         if ($authUser->usertype === 'salesman') {
+
             $salesman = Salesman::where('name', $authUser->name)->first();
 
             if (!$salesman) {
@@ -1520,23 +1577,24 @@ class ReportController extends Controller
 
             $ownerId = $salesman->admin_or_user_id;
 
-            // Only the logged-in salesman visible
+            // sirf logged-in salesman
             $Salesmans = collect([$salesman]);
         } else {
+
+            // admin / distributor
             $ownerId = $authUser->id;
 
-            // All salesmen created by this owner
             $Salesmans = Salesman::where('admin_or_user_id', $ownerId)
                 ->where('designation', 'Saleman')
                 ->get();
         }
 
-        // Step 2: Fetch all customers under this owner
+        /* ================= CUSTOMERS ================= */
         $Customers = Customer::where('admin_or_user_id', $ownerId)
             ->get(['id', 'customer_name', 'shop_name', 'area']);
 
-        // Step 3: Fetch all cities
-        $cities = City::all();
+        /* ================= CITIES (FIXED) ================= */
+        $cities = City::where('admin_or_user_id', $ownerId)->get();
 
         return view('admin_panel.reports.Area_wise_Customer_payments', [
             'Customers' => $Customers,
@@ -1546,172 +1604,200 @@ class ReportController extends Controller
     }
 
 
+
     public function fetchReceivableReport(Request $request)
     {
-        $cities = $request->city ?? [];  // multiple cities array
-        $areas = $request->area;
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
-        $salesman = $request->salesman;
+        $cities     = (array) ($request->city ?? []);
+        $areas      = (array) ($request->area ?? []);
+        $startDate  = $request->start_date;
+        $endDate    = $request->end_date;
+        $salesman   = $request->salesman ?? 'All';
 
-        if (in_array('All', (array)$cities)) {
-            $customerCities = DB::table('customers')->select('city')->distinct()->pluck('city')->toArray();
-            $distributorCities = DB::table('distributors')->select('City')->distinct()->pluck('City')->toArray();
-            $allCities = array_unique(array_merge($customerCities, $distributorCities));
-        } else {
-            $allCities = (array)$cities; // multiple cities handle
+        $authUser   = Auth::user();
+        $isAdmin        = $authUser->usertype === 'admin';
+        $isDistributor  = $authUser->usertype === 'distributor';
+        $ownerId        = $authUser->id;
+
+        /* ===========================
+       CITY FILTER
+    ============================*/
+        if (in_array('All', $cities)) {
+
+            if ($isAdmin) {
+                $cities = DB::table('customers')
+                    ->where('admin_or_user_id', $ownerId)
+                    ->pluck('city')
+                    ->merge(
+                        DB::table('distributors')
+                            ->where('admin_or_user_id', $ownerId)
+                            ->pluck('City')
+                    )
+                    ->unique()
+                    ->values()
+                    ->toArray();
+            } else {
+                // distributor → only own customers cities
+                $cities = DB::table('customers')
+                    ->where('admin_or_user_id', $ownerId)
+                    ->where('identify', 'distributor')
+                    ->pluck('city')
+                    ->unique()
+                    ->values()
+                    ->toArray();
+            }
         }
 
         $result = [];
 
-        foreach ($allCities as $c) {
-            // ==== CUSTOMERS ====
-            $customersQuery = DB::table('customers')->where('city', $c);
+        foreach ($cities as $city) {
 
-            if (!empty($areas) && !in_array('All', (array)$areas)) {
-                $customersQuery->whereIn('area', (array)$areas);
+            /* ===========================
+           CUSTOMERS (ADMIN + DISTRIBUTOR)
+        ============================*/
+            $customersQuery = DB::table('customers')
+                ->where('city', $city)
+                ->where('admin_or_user_id', $ownerId);
+
+            if ($isDistributor) {
+                $customersQuery->where('identify', 'distributor');
+            }
+
+            if (!empty($areas) && !in_array('All', $areas)) {
+                $customersQuery->whereIn('area', $areas);
             }
 
             $customers = $customersQuery->get();
             $customerData = [];
 
             foreach ($customers as $customer) {
-                $customerHasSalesBySalesman = DB::table('local_sales')
-                    ->where('customer_id', $customer->id)
-                    ->when($salesman !== 'All', fn($query) => $query->where('Saleman', $salesman))
-                    ->exists();
 
-                if ($salesman !== 'All' && !$customerHasSalesBySalesman) {
-                    continue;
+                if ($salesman !== 'All') {
+                    $hasSales = DB::table('local_sales')
+                        ->where('customer_id', $customer->id)
+                        ->where('Saleman', $salesman)
+                        ->exists();
+
+                    if (!$hasSales) continue;
                 }
 
-                $ledger = DB::table('customer_ledgers')->where('customer_id', $customer->id)->first();
+                $ledger = DB::table('customer_ledgers')
+                    ->where('customer_id', $customer->id)
+                    ->first();
+
                 $openingBalance = $ledger->opening_balance ?? 0;
 
                 $totalSales = DB::table('local_sales')
                     ->where('customer_id', $customer->id)
                     ->whereBetween('Date', [$startDate, $endDate])
-                    ->when($salesman !== 'All', fn($query) => $query->where('Saleman', $salesman))
+                    ->when($salesman !== 'All', fn($q) => $q->where('Saleman', $salesman))
                     ->sum('grand_total');
 
                 $totalReturns = DB::table('sale_returns')
                     ->where('sale_type', 'customer')
                     ->where('party_id', $customer->id)
                     ->whereBetween('created_at', [$startDate, $endDate])
-                    ->when($salesman !== 'All', function ($query) use ($salesman) {
-                        return $query->whereExists(function ($subquery) use ($salesman) {
-                            $subquery->select(DB::raw(1))
-                                ->from('local_sales')
-                                ->whereColumn('local_sales.customer_id', 'sale_returns.party_id')
-                                ->where('local_sales.Saleman', $salesman);
-                        });
-                    })
                     ->sum('total_return_amount');
 
                 $totalRecoveries = DB::table('customer_recoveries')
                     ->where('customer_ledger_id', $customer->id)
                     ->whereBetween('date', [$startDate, $endDate])
-                    ->when($salesman !== 'All', fn($query) => $query->where('salesman', $salesman))
+                    ->when($salesman !== 'All', fn($q) => $q->where('salesman', $salesman))
                     ->sum('amount_paid');
 
                 $balance = ($openingBalance + $totalSales - $totalReturns) - $totalRecoveries;
 
-                if (round($balance, 2) != 0 || $totalSales > 0 || $totalReturns > 0 || $totalRecoveries > 0) {
+                if (round($balance, 2) != 0 || $totalSales || $totalReturns || $totalRecoveries) {
                     $customerData[] = [
-                        'type' => 'customer',
-                        'pcode' => $customer->id,
-                        'name' => $customer->customer_name,
-                        'shopname' => $customer->shop_name,
-                        'address' => $customer->area,
-                        'contact' => $customer->phone_number,
-                        'balance' => round($balance, 2),
+                        'type'      => 'customer',
+                        'pcode'     => $customer->id,
+                        'name'      => $customer->customer_name,
+                        'shopname'  => $customer->shop_name,
+                        'address'   => $customer->area,
+                        'contact'   => $customer->phone_number,
+                        'balance'   => round($balance, 2),
                     ];
                 }
             }
 
-            // ==== DISTRIBUTORS ====
-            $distributorQuery = DB::table('distributors')->where('City', $c);
-
-            if (!empty($areas) && !in_array('All', (array)$areas)) {
-                $distributorQuery->whereIn('Area', (array)$areas);
-            }
-
-            if ($salesman !== 'All') {
-                $distributorQuery->whereExists(function ($query) use ($salesman) {
-                    $query->select(DB::raw(1))
-                        ->from('sales')
-                        ->whereColumn('sales.distributor_id', 'distributors.id')
-                        ->where('sales.Saleman', $salesman);
-                });
-            }
-
-            $distributors = $distributorQuery->get();
+            /* ===========================
+           DISTRIBUTORS (ADMIN ONLY)
+        ============================*/
             $distributorData = [];
 
-            foreach ($distributors as $distributor) {
-                $distributorHasSalesBySalesman = DB::table('sales')
-                    ->where('distributor_id', $distributor->id)
-                    ->when($salesman !== 'All', fn($query) => $query->where('Saleman', $salesman))
-                    ->exists();
+            if ($isAdmin) {
 
-                if ($salesman !== 'All' && !$distributorHasSalesBySalesman) {
-                    continue;
+                $distributorQuery = DB::table('distributors')
+                    ->where('City', $city)
+                    ->where('admin_or_user_id', $ownerId);
+
+                if (!empty($areas) && !in_array('All', $areas)) {
+                    $distributorQuery->whereIn('Area', $areas);
                 }
 
-                $ledger = DB::table('distributor_ledgers')->where('distributor_id', $distributor->id)->first();
-                $openingBalance = $ledger->opening_balance ?? 0;
+                if ($salesman !== 'All') {
+                    $distributorQuery->whereExists(function ($q) use ($salesman) {
+                        $q->select(DB::raw(1))
+                            ->from('sales')
+                            ->whereColumn('sales.distributor_id', 'distributors.id')
+                            ->where('sales.Saleman', $salesman);
+                    });
+                }
 
-                $totalSales = DB::table('sales')
-                    ->where('distributor_id', $distributor->id)
-                    ->whereBetween('Date', [$startDate, $endDate])
-                    ->when($salesman !== 'All', fn($query) => $query->where('Saleman', $salesman))
-                    ->sum('grand_total');
+                $distributors = $distributorQuery->get();
 
-                $totalReturns = DB::table('sale_returns')
-                    ->where('sale_type', 'distributor')
-                    ->where('party_id', $distributor->id)
-                    ->whereBetween('created_at', [$startDate, $endDate])
-                    ->when($salesman !== 'All', function ($query) use ($salesman) {
-                        return $query->whereExists(function ($subquery) use ($salesman) {
-                            $subquery->select(DB::raw(1))
-                                ->from('sales')
-                                ->whereColumn('sales.distributor_id', 'sale_returns.party_id')
-                                ->where('sales.Saleman', $salesman);
-                        });
-                    })
-                    ->sum('total_return_amount');
+                foreach ($distributors as $distributor) {
 
-                $totalRecoveries = DB::table('recoveries')
-                    ->where('distributor_ledger_id', $distributor->id)
-                    ->whereBetween('date', [$startDate, $endDate])
-                    ->when($salesman !== 'All', fn($query) => $query->where('salesman', $salesman))
-                    ->sum('amount_paid');
+                    $ledger = DB::table('distributor_ledgers')
+                        ->where('distributor_id', $distributor->id)
+                        ->first();
 
-                $balance = ($openingBalance + $totalSales - $totalReturns) - $totalRecoveries;
+                    $openingBalance = $ledger->opening_balance ?? 0;
 
-                if (round($balance, 2) != 0 || $totalSales > 0 || $totalReturns > 0 || $totalRecoveries > 0) {
-                    $distributorData[] = [
-                        'type' => 'distributor',
-                        'pcode' => $distributor->id,
-                        'name' => $distributor->Customer,
-                        'address' => $distributor->Area,
-                        'contact' => $distributor->Contact,
-                        'balance' => round($balance, 2),
-                    ];
+                    $totalSales = DB::table('sales')
+                        ->where('distributor_id', $distributor->id)
+                        ->whereBetween('Date', [$startDate, $endDate])
+                        ->when($salesman !== 'All', fn($q) => $q->where('Saleman', $salesman))
+                        ->sum('grand_total');
+
+                    $totalReturns = DB::table('sale_returns')
+                        ->where('sale_type', 'distributor')
+                        ->where('party_id', $distributor->id)
+                        ->whereBetween('created_at', [$startDate, $endDate])
+                        ->sum('total_return_amount');
+
+                    $totalRecoveries = DB::table('recoveries')
+                        ->where('distributor_ledger_id', $distributor->id)
+                        ->whereBetween('date', [$startDate, $endDate])
+                        ->when($salesman !== 'All', fn($q) => $q->where('salesman', $salesman))
+                        ->sum('amount_paid');
+
+                    $balance = ($openingBalance + $totalSales - $totalReturns) - $totalRecoveries;
+
+                    if (round($balance, 2) != 0 || $totalSales || $totalReturns || $totalRecoveries) {
+                        $distributorData[] = [
+                            'type'     => 'distributor',
+                            'pcode'    => $distributor->id,
+                            'name'     => $distributor->Customer,
+                            'address'  => $distributor->Area,
+                            'contact'  => $distributor->Contact,
+                            'balance'  => round($balance, 2),
+                        ];
+                    }
                 }
             }
 
-            $result[$c] = [
-                'distributors' => $distributorData,
-                'customers' => $customerData
+            $result[$city] = [
+                'customers'    => $customerData,
+                'distributors' => $distributorData
             ];
         }
 
         return response()->json([
             'data' => $result,
-            'salesman_name' => ($salesman !== 'All') ? $salesman : 'All Salesmen'
+            'salesman_name' => $salesman !== 'All' ? $salesman : 'All Salesmen'
         ]);
     }
+
 
 
 

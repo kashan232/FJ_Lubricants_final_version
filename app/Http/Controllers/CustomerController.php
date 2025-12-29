@@ -74,13 +74,38 @@ class CustomerController extends Controller
 
     public function fetch_areas_report(Request $request)
     {
-        $cities = (array) $request->input('cities'); // hamesha array bana do
+        if (!Auth::check()) {
+            return response()->json([]);
+        }
 
-        $areas = Area::whereIn('city_name', $cities)
-            ->get(['city_name as city', 'area_name as area']);
+        $authUser = Auth::user();
+        $cities = (array) $request->input('cities');
+
+        /* ================= OWNER DETECTION ================= */
+        if ($authUser->usertype === 'salesman') {
+
+            $salesman = Salesman::where('name', $authUser->name)->first();
+            if (!$salesman) {
+                return response()->json([]);
+            }
+
+            $ownerId = $salesman->admin_or_user_id;
+        } else {
+            // admin OR distributor
+            $ownerId = $authUser->id;
+        }
+
+        /* ================= AREAS FILTERED ================= */
+        $areas = Area::where('admin_or_user_id', $ownerId)
+            ->whereIn('city_name', $cities)
+            ->get([
+                'city_name as city',
+                'area_name as area'
+            ]);
 
         return response()->json($areas);
     }
+
 
 
     public function store(Request $request)
