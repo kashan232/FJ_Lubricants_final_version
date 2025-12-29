@@ -31,7 +31,7 @@
                                 <select class="form-control select2" id="Product" name="Product[]" multiple required>
                                     <option value="All">All</option>
                                     @foreach($Products as $Product)
-                                    <option value="{{ $Product->item_name }}">{{ $Product->item_name }}</option>
+                                    <option value="{{ $Product->item }}">{{ $Product->item }}</option>
                                     @endforeach
                                 </select>
                             </div>

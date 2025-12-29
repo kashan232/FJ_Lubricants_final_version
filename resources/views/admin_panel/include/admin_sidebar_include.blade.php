@@ -243,6 +243,8 @@
                         <li><a href="{{ route('Customer-Ledger-Record') }}">Customer Ledger Record </a></li>
                         <li><a href="{{ route('date-wise-purcahse-report') }}">Date wise Purchase Report </a></li>
                         <li><a href="{{ route('date-wise-recovery-report') }}">Date Wise Recovery Report </a></li>
+                        <li><a href="{{ route('Date-wise-Sales-Report') }}">Date wise Sales Report </a></li>
+                        <li><a href="{{ route('Product-wise-Sales-Report') }}">Product Wise Sales Report </a></li>
                     </ul>
                 </li>
             </ul>

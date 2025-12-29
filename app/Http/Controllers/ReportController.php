@@ -1848,6 +1848,7 @@ class ReportController extends Controller
         $endDate = $request->end_date;
 
         $sales = [];
+        $authUser = Auth::user();
 
         // --- Distributor Sales ---
         if ($type == 'all' || $type == 'distributor') {
@@ -1892,7 +1893,20 @@ class ReportController extends Controller
 
         // --- Customer Sales ---
         if ($type == 'all' || $type == 'customer') {
-            $query = DB::table('local_sales')->whereBetween('Date', [$startDate, $endDate]);
+
+            $query = DB::table('local_sales')
+                ->whereBetween('Date', [$startDate, $endDate]);
+
+            // 🔐 ROLE BASED FILTER (MAIN FIX)
+            if ($authUser->usertype === 'admin') {
+                // admin sirf apni local sales dekhe
+                $query->where('admin_or_user_id', $authUser->id)
+                    ->where('identify', 'admin');
+            } elseif ($authUser->usertype === 'distributor') {
+                // distributor sirf apni local sales dekhe
+                $query->where('admin_or_user_id', $authUser->id)
+                    ->where('identify', 'distributor');
+            }
 
             if ($salesman !== 'All') {
                 $query->where('Saleman', $salesman);
@@ -1901,9 +1915,10 @@ class ReportController extends Controller
             $results = $query->get();
 
             foreach ($results as $row) {
-                $items = json_decode($row->item, true) ?? [];
+
+                $items   = json_decode($row->item, true) ?? [];
                 $cartons = json_decode($row->carton_qty, true) ?? [];
-                $pcs = json_decode($row->pcs, true) ?? [];
+                $pcs     = json_decode($row->pcs, true) ?? [];
 
                 $itemDetails = [];
                 foreach ($items as $i => $itm) {
@@ -1928,17 +1943,32 @@ class ReportController extends Controller
 
     public function Product_wise_Sales_Report()
     {
-        if (Auth::id()) {
-            $userId = Auth::id();
-            $Products = Product::where('admin_or_user_id', $userId)->get(); // Adjust according to your database structure
-
-            return view('admin_panel.reports.Product_wise_Sales_Report', [
-                'Products' => $Products,
-            ]);
-        } else {
+        if (!Auth::check()) {
             return redirect()->back();
         }
+
+        $user = Auth::user();
+        if ($user->usertype === 'admin') {
+
+            $Products = Product::where('admin_or_user_id', $user->id)
+                ->select('id', 'item_name as item')
+                ->orderBy('item_name')
+                ->get();
+        }
+
+        // 🔹 DISTRIBUTOR CASE
+        else if ($user->usertype === 'distributor') {
+
+            $Products = DistributorProduct::where('distributor_id', $user->user_id)
+                ->select('id', 'item')
+                ->orderBy('item')
+                ->get();
+        } else {
+            $Products = collect(); // safety
+        }
+        return view('admin_panel.reports.Product_wise_Sales_Report', compact('Products'));
     }
+
 
     public function getProductsalesreport(Request $request)
     {
@@ -1946,91 +1976,120 @@ class ReportController extends Controller
         $startDate = $request->start_date;
         $endDate   = $request->end_date;
 
+        $user = Auth::user();
         $sales = [];
 
-        // DISTRIBUTOR SALES
-        $results = DB::table('sales')
-            ->whereBetween('Date', [$startDate, $endDate])
-            ->get();
+        /* =====================================================
+       🔹 ADMIN : Distributor Sales + Admin Customers
+    ===================================================== */
+        if ($user->usertype === 'admin') {
 
-        $distributors = DB::table('distributors')
-            ->select('id', 'Customer as name', 'address', 'area')
-            ->get()
-            ->keyBy('id');
+            /* ---------- DISTRIBUTOR SALES ---------- */
+            $results = DB::table('sales')
+                ->whereBetween('Date', [$startDate, $endDate])
+                ->get();
 
-        $sales = [];
+            $distributors = DB::table('distributors')
+                ->select('id', 'Customer as name', 'address', 'area')
+                ->get()
+                ->keyBy('id');
 
-        foreach ($results as $row) {
+            foreach ($results as $row) {
 
-            $items   = json_decode($row->item, true) ?? [];
-            $cartons = json_decode($row->carton_qty, true) ?? [];
-            $pcs     = json_decode($row->pcs, true) ?? [];
-            $liters  = json_decode($row->liter, true) ?? [];
-            $amounts = json_decode($row->amount, true) ?? [];
+                $items   = json_decode($row->item, true) ?? [];
+                $cartons = json_decode($row->carton_qty, true) ?? [];
+                $pcs     = json_decode($row->pcs, true) ?? [];
+                $liters  = json_decode($row->liter, true) ?? [];
+                $amounts = json_decode($row->amount, true) ?? [];
 
-            $d = $distributors[$row->distributor_id] ?? null;
+                $d = $distributors[$row->distributor_id] ?? null;
 
-            foreach ($items as $i => $itm) {
+                foreach ($items as $i => $itm) {
 
-                if (empty($itm) || strtolower($itm) === "select item") continue;
-                if (!in_array("All", $products) && !in_array($itm, $products)) continue;
+                    if (empty($itm)) continue;
+                    if (!in_array('All', $products) && !in_array($itm, $products)) continue;
 
-                $sales[] = [
-                    'type'        => "Distributor",
-                    'name'        => $d->name ?? "-",
-                    'address'     => $d->address ?? "-",
-                    'area'        => $d->area ?? "-",
-                    'item'        => $itm,
-                    'carton_qty'  => $cartons[$i] ?? 0,
-                    'pcs'         => $pcs[$i] ?? 0,
-                    'liters'      => $liters[$i] ?? 0,
-                    'amount'      => $amounts[$i] ?? 0,
-                ];
+                    $sales[] = [
+                        'type'       => 'Distributor',
+                        'name'       => $d->name ?? '-',
+                        'address'    => $d->address ?? '-',
+                        'area'       => $d->area ?? '-',
+                        'item'       => $itm,
+                        'carton_qty' => $cartons[$i] ?? 0,
+                        'pcs'        => $pcs[$i] ?? 0,
+                        'liters'     => $liters[$i] ?? 0,
+                        'amount'     => $amounts[$i] ?? 0,
+                    ];
+                }
+            }
+
+            /* ---------- ADMIN CUSTOMER SALES ---------- */
+            $local = DB::table('local_sales')
+                ->where('identify', 'admin')               // 🔑 admin ke customers
+                ->whereBetween('Date', [$startDate, $endDate])
+                ->get();
+
+            $customers = DB::table('customers')
+                ->where('identify', 'admin')
+                ->select('id', 'shop_name as name', 'address', 'area')
+                ->get()
+                ->keyBy('id');
+        }
+
+        /* =====================================================
+       🔹 DISTRIBUTOR : ONLY own customers local sales
+    ===================================================== */
+        if ($user->usertype === 'distributor') {
+
+            $local = DB::table('local_sales')
+                ->where('identify', 'distributor')
+                ->where('admin_or_user_id', $user->id)   // 🔑 sirf apni sales
+                ->whereBetween('Date', [$startDate, $endDate])
+                ->get();
+
+            $customers = DB::table('customers')
+                ->where('identify', 'distributor')
+                ->where('admin_or_user_id', $user->id)   // 🔑 sirf apne customers
+                ->select('id', 'shop_name as name', 'address', 'area')
+                ->get()
+                ->keyBy('id');
+        }
+
+        /* =====================================================
+       🔹 CUSTOMER SALES LOOP (COMMON)
+    ===================================================== */
+        if (!empty($local)) {
+
+            foreach ($local as $row) {
+
+                $items   = json_decode($row->item, true) ?? [];
+                $cartons = json_decode($row->carton_qty, true) ?? [];
+                $pcs     = json_decode($row->pcs, true) ?? [];
+                $liters  = json_decode($row->liter, true) ?? [];
+                $amounts = json_decode($row->amount, true) ?? [];
+
+                $c = $customers[$row->customer_id] ?? null;
+
+                foreach ($items as $i => $itm) {
+
+                    if (empty($itm)) continue;
+                    if (!in_array('All', $products) && !in_array($itm, $products)) continue;
+
+                    $sales[] = [
+                        'type'       => 'Customer',
+                        'name'       => $c->name ?? '-',
+                        'address'    => $c->address ?? '-',
+                        'area'       => $c->area ?? '-',
+                        'item'       => $itm,
+                        'carton_qty' => $cartons[$i] ?? 0,
+                        'pcs'        => $pcs[$i] ?? 0,
+                        'liters'     => $liters[$i] ?? 0,
+                        'amount'     => $amounts[$i] ?? 0,
+                    ];
+                }
             }
         }
 
-
-        // CUSTOMER SALES
-        $local = DB::table('local_sales')
-            ->whereBetween('Date', [$startDate, $endDate])
-            ->get();
-
-        $customers = DB::table('customers')
-            ->select('id', 'shop_name as name', 'address', 'area')
-            ->get()
-            ->keyBy('id');
-
-        foreach ($local as $row) {
-
-            $items   = json_decode($row->item, true) ?? [];
-            $cartons = json_decode($row->carton_qty, true) ?? [];
-            $pcs     = json_decode($row->pcs, true) ?? [];
-            $liters  = json_decode($row->liter, true) ?? [];
-            $amounts = json_decode($row->amount, true) ?? [];
-
-            $c = $customers[$row->customer_id] ?? null;
-
-            foreach ($items as $i => $itm) {
-
-                if (empty($itm) || strtolower($itm) === "select item") continue;
-                if (!in_array("All", $products) && !in_array($itm, $products)) continue;
-
-                $sales[] = [
-                    'type'        => "Customer",
-                    'name'        => $c->name ?? "-",
-                    'address'     => $c->address ?? "-",
-                    'area'        => $c->area ?? "-",
-                    'item'        => $itm,
-                    'carton_qty'  => $cartons[$i] ?? 0,
-                    'pcs'         => $pcs[$i] ?? 0,
-                    'liters'      => $liters[$i] ?? 0,
-                    'amount'      => $amounts[$i] ?? 0,
-                ];
-            }
-        }
-
-
-        // return final array values, party_details ab simple array hai
         return response()->json(array_values($sales));
     }
 }
