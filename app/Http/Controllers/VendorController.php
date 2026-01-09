@@ -18,10 +18,11 @@ class VendorController extends Controller
 
     public function vendors()
     {
-        if (Auth::id()) {
+        if (Auth::check()) {
             $userId = Auth::id();
             $Vendors = Vendor::all();
             $cities = City::where('admin_or_user_id', $userId)->get();
+
             return view('admin_panel.vendors.vendors', compact('Vendors', 'cities'));
         } else {
             return redirect()->back();

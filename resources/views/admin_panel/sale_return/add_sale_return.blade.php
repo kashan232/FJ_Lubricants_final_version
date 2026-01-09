@@ -94,6 +94,10 @@
                                             <td id="netAmount">0</td>
                                         </tr>
                                         <tr>
+                                            <td colspan="11">Return Amount (Before Discount):</td>
+                                            <td id="returnAmountBeforeDiscount">0</td>
+                                        </tr>
+                                        <tr>
                                             <td colspan="11">Total Return Amount:</td>
                                             <td id="totalReturnAmount">0</td>
                                         </tr>
@@ -229,8 +233,7 @@
                     $('#discountAmount').text(parseFloat(response.summary.discount_value || 0).toFixed(2));
                     $('#schemeAmount').text(parseFloat(response.summary.scheme_value || 0).toFixed(2));
                     $('#netAmount').text(parseFloat(response.summary.net_amount || 0).toFixed(2));
-                    $('#totalReturnAmount').text(parseFloat(response.summary.total_return_amount || 0).toFixed(2));
-
+                    recalcFooterTotal();
                     $('#party_id').val(response.party_id);
                 } else {
                     alert(response.message);
@@ -244,24 +247,64 @@
 
 
     $(document).on('input', '.return-carton-qty, .return-pcs-qty', function() {
+
         let $row = $(this).closest('tr');
-        let rate = parseFloat($row.find('.return-carton-qty').data('rate')) || 0;
-        let pcsPerCarton = parseFloat($row.find('td:nth-child(4)').text()) || 1;
+
+        // Sold data
+        let soldCartons = parseFloat($row.find('td:eq(4)').text()) || 0;
+        let soldPcs = parseFloat($row.find('td:eq(5)').text()) || 0;
+        let pcsPerCarton = parseFloat($row.find('td:eq(3)').text()) || 1;
+
+        // Gross & Discount
+        let grossItemTotal = parseFloat($row.find('td:eq(9)').text()) || 0;
+        let discount = parseFloat($row.find('td:eq(8)').text()) || 0;
+
+        // ✅ NET ITEM TOTAL
+        let netItemTotal = grossItemTotal - discount;
+
+        // Total pcs sold
+        let totalSoldPcs = (soldCartons * pcsPerCarton) + soldPcs;
+        if (totalSoldPcs <= 0) return;
+
+        // Unit prices (NET)
+        let netPerPcs = netItemTotal / totalSoldPcs;
+        let netPerCarton = netPerPcs * pcsPerCarton;
+
+        // Return qty
         let returnCartonQty = parseFloat($row.find('.return-carton-qty').val()) || 0;
         let returnPcsQty = parseFloat($row.find('.return-pcs-qty').val()) || 0;
 
-        // Total return amount ki calculation
-        let returnAmount = (rate * returnCartonQty) + ((rate / pcsPerCarton) * returnPcsQty);
+        // Final return amount (NET BASED)
+        let returnAmount =
+            (returnCartonQty * netPerCarton) +
+            (returnPcsQty * netPerPcs);
+
         $row.find('.return-amount').val(returnAmount.toFixed(2));
 
-        // Total return amount ko update karna
-        let totalReturnAmount = 0;
+        recalcFooterTotal();
+    });
+
+    function recalcFooterTotal() {
+
+        let returnBeforeDiscount = 0;
+
+        // 1️⃣ Sum all row return amounts (6200 etc)
         $('.return-amount').each(function() {
-            totalReturnAmount += parseFloat($(this).val()) || 0;
+            returnBeforeDiscount += parseFloat($(this).val()) || 0;
         });
 
-        $('#totalReturnAmount').text(totalReturnAmount.toFixed(2));
-    });
+        // Show before discount
+        $('#returnAmountBeforeDiscount').text(returnBeforeDiscount.toFixed(2));
+
+        // 2️⃣ Minus discount
+        let discount = parseFloat($('#discountAmount').text()) || 0;
+
+        let finalReturn = returnBeforeDiscount - discount;
+        if (finalReturn < 0) finalReturn = 0;
+
+        // Show final total return
+        $('#totalReturnAmount').text(finalReturn.toFixed(2));
+    }
 
     $('#sale-return-form').on('submit', function(e) {
         e.preventDefault();
@@ -304,6 +347,7 @@
                 party_id: partyId,
                 invoice_number: invoiceNumber,
                 return_items: returnItems,
+                total_return_amount: parseFloat($('#totalReturnAmount').text()) || 0,
                 _token: '{{ csrf_token() }}'
             }),
             success: function(response) {

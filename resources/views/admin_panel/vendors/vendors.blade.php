@@ -28,6 +28,33 @@
                         <strong>Success!</strong> {{ session('success') }}.
                     </div>
                     @endif
+
+                    @if(Auth::user()->usertype === 'distributor')
+
+                    <!-- DISTRIBUTOR STATIC CARD -->
+                    <div class="row justify-content-center">
+                        <div class="col-md-6">
+                            <div class="card shadow-sm border-0">
+                                <div class="card-body text-center">
+                                    <h4 class="fw-bold mb-2">FJL LUBRICANTS</h4>
+
+                                    <p class="mb-1 text-muted">
+                                        6-B Block-E, Latifabad No. 08,<br>
+                                        Hyderabad
+                                    </p>
+
+                                    <hr>
+
+                                    <p class="mb-0">
+                                        <strong>Phone:</strong><br>
+                                        0314-4021603 <br>
+                                        0334-2611233
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @else
                     <div class="table-responsive">
                         <table class="table datanew">
                             <thead>
@@ -38,8 +65,8 @@
                                     <th>City</th>
                                     <th>Area</th>
                                     @if(Auth::user()->usertype === 'admin')
-                                        <th>Address</th>
-                                        <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Phone</th>
                                     @endif
                                     <th>Action</th>
                                 </tr>
@@ -53,8 +80,8 @@
                                     <td>{{ $Vendor->City }}</td>
                                     <td>{{ $Vendor->Area }}</td>
                                     @if(Auth::user()->usertype === 'admin')
-                                        <td>{{ $Vendor->Party_address }}</td>
-                                        <td>{{ $Vendor->Party_phone }}</td>
+                                    <td>{{ $Vendor->Party_address }}</td>
+                                    <td>{{ $Vendor->Party_phone }}</td>
                                     @endif
                                     <td>
                                         <!-- Edit Button with Admin Check -->
@@ -81,6 +108,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @endif
                 </div>
             </div>
         </div>

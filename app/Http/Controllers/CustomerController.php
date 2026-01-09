@@ -68,7 +68,40 @@ class CustomerController extends Controller
 
     public function fetchAreas(Request $request)
     {
-        $areas = Area::where('city_name', $request->city_id)->get();
+        if (!Auth::check()) {
+            return response()->json([]);
+        }
+
+        $authUser = Auth::user();
+        $city = $request->input('city_id');
+
+        if (!$city) {
+            return response()->json([]);
+        }
+
+        /* ================= OWNER DETECTION ================= */
+        if ($authUser->usertype === 'salesman') {
+
+            $salesman = Salesman::where('name', $authUser->name)->first();
+            if (!$salesman) {
+                return response()->json([]);
+            }
+
+            $ownerId = $salesman->admin_or_user_id;
+        } else {
+            // admin OR distributor
+            $ownerId = $authUser->id;
+        }
+
+        /* ================= AREAS FILTERED ================= */
+        $areas = Area::where('admin_or_user_id', $ownerId)
+            ->where('city_name', $city)
+            ->get([
+                'id',
+                'area_name',
+                'city_name'
+            ]);
+
         return response()->json($areas);
     }
 

@@ -3,28 +3,27 @@
 <div class="main-wrapper">
     @include('admin_panel.include.navbar_include')
     @include('admin_panel.include.admin_sidebar_include')
-<style>
-    .ledger-table {
-    table-layout: fixed;
-    width: 100%;
-}
+    <style>
+        .ledger-table {
+            table-layout: fixed;
+            width: 100%;
+        }
 
-.ledger-table td:nth-child(3),
-.ledger-table th:nth-child(3),
-.ledger-table td:nth-child(4),
-.ledger-table th:nth-child(4) {
-    text-align: left;
-    white-space: normal;
-    word-break: break-word;
-}
+        .ledger-table td:nth-child(3),
+        .ledger-table th:nth-child(3),
+        .ledger-table td:nth-child(4),
+        .ledger-table th:nth-child(4) {
+            text-align: left;
+            white-space: normal;
+            word-break: break-word;
+        }
 
-/* numeric columns tight */
-.ledger-table td:not(:nth-child(3)):not(:nth-child(4)),
-.ledger-table th:not(:nth-child(3)):not(:nth-child(4)) {
-    white-space: nowrap;
-}
-
-</style>
+        /* numeric columns tight */
+        .ledger-table td:not(:nth-child(3)):not(:nth-child(4)),
+        .ledger-table th:not(:nth-child(3)):not(:nth-child(4)) {
+            white-space: nowrap;
+        }
+    </style>
     <div class="page-wrapper">
         <div class="content">
             <div class="card p-4 shadow-lg">
@@ -90,19 +89,19 @@
                             </div>
 
                             <div style="overflow-x:auto;">
-                               <table class="ledger-table">
+                                <table class="ledger-table">
                                     <colgroup>
-                                        <col style="width:90px;">    <!-- Date -->
-                                        <col style="width:110px;">   <!-- INV -->
-                                        <col style="width:320px;">   <!-- Item (WIDE) -->
-                                        <col style="width:280px;">   <!-- Description (WIDE) -->
-                                        <col style="width:70px;">    <!-- Carton -->
-                                        <col style="width:70px;">    <!-- PCS -->
-                                        <col style="width:70px;">    <!-- Liters -->
-                                        <col style="width:90px;">    <!-- Rate -->
-                                        <col style="width:110px;">   <!-- Debit -->
-                                        <col style="width:110px;">   <!-- Credit -->
-                                        <col style="width:130px;">   <!-- Balance -->
+                                        <col style="width:90px;"> <!-- Date -->
+                                        <col style="width:110px;"> <!-- INV -->
+                                        <col style="width:320px;"> <!-- Item (WIDE) -->
+                                        <col style="width:280px;"> <!-- Description (WIDE) -->
+                                        <col style="width:70px;"> <!-- Carton -->
+                                        <col style="width:70px;"> <!-- PCS -->
+                                        <col style="width:70px;"> <!-- Liters -->
+                                        <col style="width:90px;"> <!-- Rate -->
+                                        <col style="width:110px;"> <!-- Debit -->
+                                        <col style="width:110px;"> <!-- Credit -->
+                                        <col style="width:130px;"> <!-- Balance -->
                                     </colgroup>
                                     <thead>
                                         <tr>
@@ -355,30 +354,30 @@
                 allEntries.forEach(entry => {
                     if (entry.type === 'sale') {
 
-    let itemsArr  = String(entry.items).split(',').map(v => v.trim());
-    let cartonArr = String(entry.cartons).split(',').map(v => v.trim());
-    let pcsArr    = String(entry.pcs || '').split(',').map(v => v.trim());
-    let literArr  = String(entry.liters || '').split(',').map(v => v.trim());
-    let rateArr   = String(entry.rates).split(',').map(v => v.trim());
+                        let itemsArr = String(entry.items).split(',').map(v => v.trim());
+                        let cartonArr = String(entry.cartons).split(',').map(v => v.trim());
+                        let pcsArr = String(entry.pcs || '').split(',').map(v => v.trim());
+                        let literArr = String(entry.liters || '').split(',').map(v => v.trim());
+                        let rateArr = String(entry.rates).split(',').map(v => v.trim());
 
-    itemsArr.forEach((itemName, i) => {
+                        itemsArr.forEach((itemName, i) => {
 
-        let carton = parseFloat(cartonArr[i] || 0);
-        let pcs    = parseFloat(pcsArr[i] || 0);
-        let liter  = parseFloat(literArr[i] || 0);
-        let rate   = parseFloat(rateArr[i] || 0);
+                            let carton = parseFloat(cartonArr[i] || 0);
+                            let pcs = parseFloat(pcsArr[i] || 0);
+                            let liter = parseFloat(literArr[i] || 0);
+                            let rate = parseFloat(rateArr[i] || 0);
 
-        let debit = rate * (carton || liter || pcs || 1);
+                            // ✅ FIX: ledger debit ALWAYS net_amount
+                            let debit = parseFloat(entry.amount) || 0;
+                            totalDebit += debit;
+                            balance += debit;
 
-        totalDebit += debit;
-        balance += debit;
+                            totalCartons += carton;
+                            totalPcs += pcs;
+                            totalLiters += liter;
+                            grandAmount += debit;
 
-        totalCartons += carton;
-        totalPcs += pcs;
-        totalLiters += liter;
-        grandAmount += debit;
-
-        ledgerHTML += `
+                            ledgerHTML += `
 <tr>
     <td>${formatDate(entry.date)}</td>
     <td>${entry.invoice_number || '-'}</td>
@@ -394,9 +393,9 @@
         Rs. ${balance.toFixed(2)}
     </td>
 </tr>`;
-    });
-}
- else if (entry.type === 'sale_return') {
+                        });
+
+                    } else if (entry.type === 'sale_return') {
                         let credit = parseFloat(entry.amount) || 0;
                         totalCredit += credit;
                         balance -= credit;
@@ -462,21 +461,21 @@
     });
 </script>
 <script>
-    $('#downloadPdf').on('click', function () {
+    $('#downloadPdf').on('click', function() {
 
         let customerId = $('#Customer').val();
-        let startDate  = $('#start_date').val();
-        let endDate    = $('#end_date').val();
+        let startDate = $('#start_date').val();
+        let endDate = $('#end_date').val();
 
         if (!customerId) {
             alert('Select customer first');
             return;
         }
 
-        let url = "{{ route('customer-ledger-pdf') }}"
-            + "?customer_id=" + customerId
-            + "&start_date=" + startDate
-            + "&end_date=" + endDate;
+        let url = "{{ route('customer-ledger-pdf') }}" +
+            "?customer_id=" + customerId +
+            "&start_date=" + startDate +
+            "&end_date=" + endDate;
 
         window.open(url, '_blank');
     });

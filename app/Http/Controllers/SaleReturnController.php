@@ -126,8 +126,13 @@ class SaleReturnController extends Controller
 
             $itemTotal = $cartonTotal + $pcsTotal;
 
+            // NET after discount
+            $netItemTotal = $itemTotal - $discountAmount;
+
             $grandTotal += $itemTotal;
-            $totalReturnAmount += $returnQtyValue * $rateAmount;
+
+            // ✅ NET BASED RETURN
+            $totalReturnAmount += $returnQtyValue * $netItemTotal;
 
             $rows[] = [
                 'invoice_number' => $sale->invoice_number,
@@ -141,7 +146,7 @@ class SaleReturnController extends Controller
                 'discount_amount' => $discountAmount,
                 'packing' => $pcsPerCarton,
                 'return_qty' => $returnQtyValue,
-                'return_amount' => $returnQtyValue * $rateAmount,
+                'return_amount' => round($returnQtyValue * $netItemTotal, 2),
                 'item_total' => round($itemTotal, 2)
             ];
         }
@@ -176,14 +181,14 @@ class SaleReturnController extends Controller
             'return_items.*.rate' => 'required|numeric',
             'return_items.*.discount' => 'nullable|numeric',
             'return_items.*.total' => 'required|numeric',
+            'total_return_amount' => 'required|numeric|min:0',
         ]);
 
         $user = Auth::user();
         $userId = $user->id;
 
         $items = collect($validatedData['return_items']);
-        $totalReturnAmount = $items->sum('total');
-
+        $totalReturnAmount = $validatedData['total_return_amount'];
         // Create SaleReturn
         $saleReturn = SaleReturn::create([
             'admin_or_user_id' => $userId,
