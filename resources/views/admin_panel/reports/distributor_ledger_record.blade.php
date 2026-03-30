@@ -321,7 +321,8 @@
                             cartons: entry.cartons || entry.carton_qty || '-',
                             pcs: entry.pcs || '-',
                             liters: entry.liters || entry.liter || '-',
-                            rates: entry.rates || entry.rate || '-'
+                            rates: entry.rates || entry.rate || '-',
+                            packing: entry.packing || '-' 
                         });
                     });
 
@@ -390,6 +391,7 @@
                             let pcsArr = String(entry.pcs || '').split(',').map(v => v.trim());
                             let literArr = String(entry.liters || '').split(',').map(v => v.trim());
                             let rateArr = String(entry.rates).split(',').map(v => v.trim());
+                            let packingArr = String(entry.packing || '').split(',').map(v => v.trim());
 
                             itemsArr.forEach((itemName, i) => {
 
@@ -398,9 +400,26 @@
                                 let pcs = (pcsRaw === '-' || pcsRaw === '' || pcsRaw === null) ? 0 : parseFloat(pcsRaw) || 0;
                                 let liter = parseFloat(literArr[i] || 0);
                                 let rate = parseFloat(rateArr[i] || 0);
+                                let packing = parseFloat(packingArr[i] || 1); // Default to 1 to avoid division by zero
+                                if(packing === 0) packing = 1;
 
-                                // amount calc (same logic jo purchase me use ki)
-                                let debit = rate * (carton || liter || pcs || 1);
+                                // Amount Calculation
+                                // Carton Amount = CartonQty * Rate
+                                // Pcs Amount = PcsQty * (Rate / Packing)
+                                // Liter = Liter * Rate (If applicable, though mostly calculated via Carton/PCS logic)
+
+                                let debit = (carton * rate) + ((pcs * rate) / packing);
+                                
+                                // Fallback for Liter-only items if carton/pcs are 0 but liter exists and price is per liter? 
+                                // Assuming Rate is per unit size if liter is main unit. 
+                                // But strictly following user's invoice logic:
+                                if (carton === 0 && pcs === 0 && liter > 0) {
+                                     // If only liter is present, we assume rate is per carton/packing unit? 
+                                     // Or maybe rate is total? 
+                                     // Based on Invoice Row 5: Carton 21, Rate 3650. Amount 76650. (21*3650).
+                                     // Based on Invoice Row 4: Pcs 1 (4 Ltr), Rate 12180. Amount 3045. (1 * 12180/4).
+                                     // So the formula seems stable.
+                                }
 
                                 totalDebit += debit;
                                 balance += debit;

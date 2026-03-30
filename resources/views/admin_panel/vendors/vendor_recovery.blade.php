@@ -17,7 +17,11 @@
 
                         <div class="mb-3">
                             <label class="form-label">Vendor</label>
-                            <input type="text" class="form-control" id="modal_vendor_name" readonly>
+                            <select class="form-control" name="vendor_id" id="modal_vendor_id" required>
+                                @foreach($Vendors as $vendor)
+                                <option value="{{ $vendor->id }}">{{ $vendor->Party_name }}</option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <div class="mb-3">
@@ -27,7 +31,7 @@
 
                         <div class="mb-3">
                             <label class="form-label">Update Type</label>
-                            <select class="form-control" name="adjust_type" required>
+                            <select class="form-control" name="adjust_type">
                                 <option value="">-- Select --</option>
                                 <option value="plus">+ plus</option>
                                 <option value="minus">– minus</option>
@@ -36,7 +40,7 @@
 
                         <div class="mb-3">
                             <label class="form-label">Amount to Adjust</label>
-                            <input type="number" step="0.01" class="form-control" name="adjust_amount" required>
+                            <input type="number" step="0.01" class="form-control" name="adjust_amount">
                         </div>
 
                         <div class="mb-3">
@@ -105,6 +109,7 @@
                                             data-amount="{{ $VendorPayment->amount_paid }}"
                                             data-date="{{ $VendorPayment->payment_date }}"
                                             data-description="{{ $VendorPayment->description }}"
+                                            data-vendor-id="{{ $VendorPayment->vendor_id }}"
                                             data-vendor="{{ $VendorPayment->vendor->Party_name ?? 'N/A' }}">
                                             Edit
                                         </button>
@@ -136,7 +141,7 @@
             button.addEventListener('click', function() {
                 document.getElementById('modal_payment_id').value = this.dataset.id;
                 document.getElementById('modal_amount_paid').value = this.dataset.amount;
-                document.getElementById('modal_vendor_name').value = this.dataset.vendor;
+                document.getElementById('modal_vendor_id').value = this.dataset.vendorId;
                 document.getElementById('modal_date').value = this.dataset.date;
                 document.getElementById('modal_description').value = this.dataset.description;
             });

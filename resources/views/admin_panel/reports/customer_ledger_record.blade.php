@@ -215,6 +215,17 @@
     }
 </style>
 <script>
+
+    $(document).ready(function () {
+
+        $('#Customer').select2({
+            placeholder: "-- Select Customer --",
+            allowClear: true,
+            width: '100%'
+        });
+
+    });
+
     // helper: format date dd/mm/yyyy
     function formatDate(dateString) {
         if (!dateString) return '-';
@@ -305,6 +316,7 @@
                         pcs: s.pcs ?? '-',
                         liters: s.liters ?? s.liter ?? '-',
                         rates: s.rates ?? s.rate ?? '-',
+                        packing: s.packing ?? '-',
                         desc: `To Sale A/c (${s.Saleman || '-'})`
                     });
                 });
@@ -359,6 +371,7 @@
                         let pcsArr = String(entry.pcs || '').split(',').map(v => v.trim());
                         let literArr = String(entry.liters || '').split(',').map(v => v.trim());
                         let rateArr = String(entry.rates).split(',').map(v => v.trim());
+                        let packingArr = String(entry.packing || '').split(',').map(v => v.trim());
 
                         itemsArr.forEach((itemName, i) => {
 
@@ -366,9 +379,12 @@
                             let pcs = parseFloat(pcsArr[i] || 0);
                             let liter = parseFloat(literArr[i] || 0);
                             let rate = parseFloat(rateArr[i] || 0);
+                            let packing = parseFloat(packingArr[i] || 1);
+                            if (packing === 0) packing = 1;
 
-                            // ✅ FIX: ledger debit ALWAYS net_amount
-                            let debit = parseFloat(entry.amount) || 0;
+                            // ✅ FIX: Calculate debit per item
+                            // Formula: (Carton * Rate) + (Piece * (Rate / Packing))
+                            let debit = (carton * rate) + ((pcs * rate) / packing);
                             totalDebit += debit;
                             balance += debit;
 

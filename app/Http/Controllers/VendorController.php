@@ -189,7 +189,8 @@ class VendorController extends Controller
         if (Auth::id()) {
             $userId = Auth::id();
             $VendorPayments = VendorPayment::where('admin_or_user_id', $userId)->with('vendor')->get();
-            return view('admin_panel.vendors.vendor_recovery', compact('VendorPayments'));
+            $Vendors = Vendor::all();
+            return view('admin_panel.vendors.vendor_recovery', compact('VendorPayments', 'Vendors'));
         } else {
             return redirect()->back();
         }
@@ -212,44 +213,69 @@ class VendorController extends Controller
     {
         $request->validate([
             'payment_id' => 'required|exists:vendor_payments,id',
-            'adjust_type' => 'required|in:plus,minus',
-            'adjust_amount' => 'required|numeric|min:0.01',
+            'vendor_id' => 'required|exists:vendors,id',
+            'adjust_type' => 'nullable|in:plus,minus',
+            'adjust_amount' => 'nullable|numeric|min:0.01',
             'date' => 'required|date',
             'description' => 'nullable|string|max:255',
         ]);
 
         $payment = VendorPayment::findOrFail($request->payment_id);
-        $vendorId = $payment->vendor_id;
+        $oldVendorId = $payment->vendor_id;
+        $newVendorId = $request->vendor_id;
+        $oldAmount = $payment->amount_paid;
 
-        // Update the vendor payment
-        $adjustment = $request->adjust_type === 'plus'
-            ? $payment->amount_paid + $request->adjust_amount
-            : $payment->amount_paid - $request->adjust_amount;
+        // Calculate adjustment
+        $adjustment = 0;
+        if ($request->adjust_type && $request->adjust_amount) {
+            $adjustment = ($request->adjust_type === 'plus') ? $request->adjust_amount : -$request->adjust_amount;
+        }
 
+        $newAmount = $oldAmount + $adjustment;
+
+        // Prevent negative payment amount
+        if ($newAmount < 0) {
+            return redirect()->back()->with('error', 'Payment amount cannot be negative.');
+        }
+
+        // Update the payment record
         $payment->update([
-            'amount_paid' => $adjustment,
+            'vendor_id' => $newVendorId,
+            'amount_paid' => $newAmount,
             'payment_date' => $request->date,
             'description' => $request->description,
         ]);
 
-        // Update the vendor ledger
-        $ledger = VendorLedger::where('vendor_id', $vendorId)->latest()->first();
-
-        if ($ledger) {
-            $newClosing = $ledger->closing_balance;
-            $newRecovery = $ledger->recovery;
-
-            if ($request->adjust_type === 'plus') {
-                $newClosing -= $request->adjust_amount;
-                $newRecovery += $request->adjust_amount;
-            } else { // minus
-                $newClosing -= $request->adjust_amount;
-                $newRecovery += $request->adjust_amount;
+        // Handle Ledger Updates
+        if ($oldVendorId != $newVendorId) {
+            // 1. Revert Old Vendor (Add back amount)
+            $oldLedger = VendorLedger::where('vendor_id', $oldVendorId)->latest()->first();
+            if ($oldLedger) {
+                $oldLedger->closing_balance += $oldAmount;
+                $oldLedger->save();
             }
 
-            $ledger->update([
-                'closing_balance' => $newClosing,
-            ]);
+            // 2. Deduct New Vendor (Subtract new amount)
+            $newLedger = VendorLedger::where('vendor_id', $newVendorId)->latest()->first();
+            if ($newLedger) {
+                $newLedger->closing_balance -= $newAmount;
+                $newLedger->save();
+            } else {
+                VendorLedger::create([
+                    'vendor_id' => $newVendorId,
+                    'previous_balance' => 0,
+                    'closing_balance' => -$newAmount,
+                ]);
+            }
+        } else {
+            // Same Vendor - Apply Adjustment
+            if ($adjustment != 0) {
+                $ledger = VendorLedger::where('vendor_id', $oldVendorId)->latest()->first();
+                if ($ledger) {
+                    $ledger->closing_balance -= $adjustment;
+                    $ledger->save();
+                }
+            }
         }
 
         return redirect()->back()->with('success', 'Vendor payment and ledger updated successfully.');

@@ -1,0 +1,21 @@
+recoveries:
+id, admin_or_user_id, distributor_ledger_id, amount_paid, salesman, date, remarks, created_at, updated_at, deleted_at
+
+customer_recoveries:
+id, admin_or_user_id, customer_ledger_id, amount_paid, salesman, date, remarks, created_at, updated_at, deleted_at
+
+vendor_payments:
+id, admin_or_user_id, vendor_id, purchase_id, amount_paid, payment_date, description, created_at, updated_at, deleted_at
+
+add_expenses:
+id, admin_or_user_id, expense_category, title, amount, date, description, created_at, updated_at, deleted_at
+
+distributor_ledgers:
+id, admin_or_user_id, distributor_id, opening_balance, previous_balance, closing_balance, created_at, updated_at, deleted_at
+
+customer_ledgers:
+id, admin_or_user_id, customer_id, opening_balance, previous_balance, closing_balance, created_at, updated_at, deleted_at
+
+vendor_ledgers:
+id, admin_or_user_id, vendor_id, opening_balance, previous_balance, closing_balance, created_at, updated_at, deleted_at
+

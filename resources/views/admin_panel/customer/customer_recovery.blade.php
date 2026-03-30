@@ -24,7 +24,8 @@
                         <table class="table datanew">
                             <thead>
                                 <tr>
-                                    <th>#</th>
+                                    <th>Sno</th>
+                                    <th>Pay-id</th>
                                     <th>Date</th>
                                     <th>Shop</th>
                                     <th>Name</th>
@@ -39,6 +40,7 @@
                                 @foreach($Recoveries as $key => $recovery)
                                     <tr id="recovery-row-{{ $recovery->id }}">
                                         <td>{{ $key + 1 }}</td>
+                                        <td>{{ $recovery->id }}</td>
                                         <td>{{ $recovery->date }}</td>
                                         <td>{{ $recovery->customer->shop_name ?? 'N/A' }}</td>
                                         <td>{{ $recovery->customer->customer_name ?? 'N/A' }}</td>

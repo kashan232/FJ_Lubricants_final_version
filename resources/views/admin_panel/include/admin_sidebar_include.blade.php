@@ -130,10 +130,15 @@
                         <li><a href="{{ route('date-wise-purcahse-report') }}">Date wise Purchase Report </a></li>
                         <li><a href="{{ route('vendor-wise-purcahse-report') }}">Vendor wise Purchase Report </a></li>
                         <li><a href="{{ route('Area-wise-Customer-payments') }}">Market Credit Report </a></li>
+                        <li><a href="{{ route('Area-wise-Sale-Report') }}">Area wise Sale Report </a></li>
                         <li><a href="{{ route('Date-wise-Sales-Report') }}">Date wise Sales Report </a></li>
                         <li><a href="{{ route('Product-wise-Sales-Report') }}">Product Wise Sales Report </a></li>
+                        <li><a href="{{ route('Product-wise-Purchase-Report') }}">Product Wise Purchase Report </a></li>
+                        <li><a href="{{ route('Profit-Report') }}">Profit Report </a></li>
+                        <li><a href="{{ route('Item-Wise-Sale-Report') }}">Item Wise Sale Report </a></li>
+                        <li><a href="{{ route('Balance-Sheet') }}">Balance Sheet </a></li>
+                        <li><a href="{{ route('Trial-Balance') }}">Trial Balance </a></li>
                         <!-- <li><a href="{{ route('Area-wise-salesman-market-payments') }}">Salesman Wise Market Credit Report</a></li> -->
-
                     </ul>
                 </li>
             </ul>

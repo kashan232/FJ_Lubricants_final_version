@@ -382,6 +382,37 @@ class LocalSaleController extends Controller
             ]);
         }
 
+        // STEP 1: Revert OLD sale stock (Add back)
+        $oldItems   = json_decode($sale->item, true) ?? [];
+        $oldCartons = json_decode($sale->carton_qty, true) ?? [];
+        $oldPcs     = json_decode($sale->pcs, true) ?? [];
+        $oldCodes   = json_decode($sale->code, true) ?? [];
+
+        foreach ($oldCodes as $key => $item_code) {
+            if ($user->usertype == 'admin') {
+                $product = Product::where('item_code', $item_code)->first();
+                if ($product) {
+                    $oldTotal = ($oldCartons[$key] * $product->pcs_in_carton) + $oldPcs[$key];
+                    $product->carton_quantity += $oldCartons[$key];
+                    $product->initial_stock += $oldTotal;
+                    $product->save();
+                }
+            }
+            if ($user->usertype == 'distributor') {
+                $distributorProduct = \App\Models\DistributorProduct::where([
+                    'distributor_id' => $user->user_id,
+                    'code' => $item_code,
+                ])->first();
+                if ($distributorProduct) {
+                    $oldTotal = ($oldCartons[$key] * $distributorProduct->pcs_carton) + $oldPcs[$key];
+                    $distributorProduct->carton_quantity += $oldCartons[$key];
+                    $distributorProduct->pcs += $oldPcs[$key];
+                    $distributorProduct->initial_stock += $oldTotal;
+                    $distributorProduct->save();
+                }
+            }
+        }
+
         // STEP 2: Update Sale Data
         $sale->update([
             'Date' => $request->Date,
@@ -411,7 +442,7 @@ class LocalSaleController extends Controller
             'net_amount' => $request->net_amount,
         ]);
 
-        // STEP 3: Update Stock
+        // STEP 3: Apply NEW sale stock
         foreach ($request->code as $index => $item_code) {
             $cartonQty = (int) $request->carton_qty[$index];
             $pcsSold = (int) $request->pcs[$index];

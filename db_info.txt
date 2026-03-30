@@ -1,0 +1,64 @@
+PRODUCTS COLUMNS:
+Array
+(
+    [0] => id
+    [1] => admin_or_user_id
+    [2] => category
+    [3] => sub_category
+    [4] => item_code
+    [5] => item_name
+    [6] => size
+    [7] => opening_carton_quantity
+    [8] => carton_quantity
+    [9] => loose_pieces
+    [10] => pcs_in_carton
+    [11] => wholesale_price
+    [12] => retail_price
+    [13] => initial_stock
+    [14] => alert_quantity
+    [15] => created_at
+    [16] => updated_at
+    [17] => deleted_at
+)
+
+DISTRIBUTOR LEDGER COLUMNS:
+Array
+(
+    [0] => id
+    [1] => admin_or_user_id
+    [2] => distributor_id
+    [3] => opening_balance
+    [4] => previous_balance
+    [5] => closing_balance
+    [6] => created_at
+    [7] => updated_at
+    [8] => deleted_at
+)
+
+CUSTOMER LEDGER COLUMNS:
+Array
+(
+    [0] => id
+    [1] => admin_or_user_id
+    [2] => customer_id
+    [3] => opening_balance
+    [4] => previous_balance
+    [5] => closing_balance
+    [6] => created_at
+    [7] => updated_at
+    [8] => deleted_at
+)
+
+VENDOR LEDGER COLUMNS:
+Array
+(
+    [0] => id
+    [1] => admin_or_user_id
+    [2] => vendor_id
+    [3] => opening_balance
+    [4] => previous_balance
+    [5] => closing_balance
+    [6] => created_at
+    [7] => updated_at
+    [8] => deleted_at
+)

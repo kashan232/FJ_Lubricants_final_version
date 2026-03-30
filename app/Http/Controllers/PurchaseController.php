@@ -256,6 +256,28 @@ class PurchaseController extends Controller
             ]);
         }
 
+        // STEP 1: Revert OLD stock before updating
+        $oldItems   = json_decode($purchase->item, true) ?? [];
+        $oldCartons = json_decode($purchase->carton_qty, true) ?? [];
+        $oldPcs     = json_decode($purchase->pcs, true) ?? [];
+        $oldCats    = json_decode($purchase->category, true) ?? [];
+        $oldSubcats = json_decode($purchase->subcategory, true) ?? [];
+
+        foreach ($oldItems as $key => $item_name) {
+            $product = Product::where('item_name', $item_name)
+                ->where('category', $oldCats[$key])
+                ->where('sub_category', $oldSubcats[$key])
+                ->first();
+
+            if ($product) {
+                // Subtract old quantities
+                $product->carton_quantity -= $oldCartons[$key];
+                $product->initial_stock -= ($oldCartons[$key] * $product->pcs_in_carton) + $oldPcs[$key];
+                // prices are not reverted as they will be overwritten anyway
+                $product->save();
+            }
+        }
+
         // Update the purchase data.  Use the same structure as store.
         $purchaseData = [
             'admin_or_user_id' => $userId,
@@ -279,7 +301,7 @@ class PurchaseController extends Controller
 
         $purchase->update($purchaseData); // Use update() instead of create()
 
-        // Step 2: Update Product Stock and Wholesale Price
+        // STEP 2: Apply NEW stock
         foreach ($request->item as $key => $item_name) {
             $category = $request->category[$key];
             $subcategory = $request->subcategory[$key];
@@ -294,7 +316,7 @@ class PurchaseController extends Controller
                 ->first();
 
             if ($product) {
-                // Pehle ka stock
+                // Pehle ka stock (which was just reverted)
                 $previous_cartons = $product->carton_quantity;
                 $pcs_in_carton = $product->pcs_in_carton;
                 $previous_stock = $product->initial_stock;

@@ -230,6 +230,18 @@ Route::post('/fetch-vendor-purchase-report', [ReportController::class, 'fetchVen
 Route::get('/Area-wise-Customer-payments', [ReportController::class, 'Area_wise_Customer_payments'])->name('Area-wise-Customer-payments');
 Route::get('/receivable-report', [ReportController::class, 'fetchReceivableReport'])->name('fetch.receivable.report');
 
+Route::get('/Area-wise-Sale-Report', [ReportController::class, 'Area_wise_Sale_Report'])->name('Area-wise-Sale-Report');
+Route::get('/fetch-area-wise-sale-report', [ReportController::class, 'fetchAreaWiseSaleReport'])->name('fetch.area.wise.sale.report');
+Route::get('/Profit-Report', [ReportController::class, 'Profit_Report'])->name('Profit-Report');
+Route::get('/fetch-profit-report', [ReportController::class, 'fetchProfitReport'])->name('fetch.profit.report');
+Route::get('/Item-Wise-Sale-Report', [ReportController::class, 'Item_Wise_Sale_Report'])->name('Item-Wise-Sale-Report');
+Route::get('/fetch-item-wise-sale-report', [ReportController::class, 'fetchItemWiseSaleReport'])->name('fetch.item.wise.sale.report');
+Route::get('/Balance-Sheet', [ReportController::class, 'Balance_Sheet'])->name('Balance-Sheet');
+Route::get('/fetch-balance-sheet', [ReportController::class, 'fetchBalanceSheet'])->name('fetch.balance.sheet');
+
+Route::get('/Trial-Balance', [ReportController::class, 'Trial_Balance'])->name('Trial-Balance');
+Route::get('/fetch-trial-balance', [ReportController::class, 'fetchTrialBalance'])->name('fetch.trial.balance');
+
 Route::get('/Area-wise-salesman-market-payments', [ReportController::class, 'Area_wise_salesman_market_payments'])->name('Area-wise-salesman-market-payments');
 Route::get('/receivable-salesman-marketreport', [ReportController::class, 'receivablesalesmanmarketreport'])->name('receivable.salesman.marketreport');
 
@@ -239,6 +251,10 @@ Route::post('/get-sales-report', [ReportController::class, 'getsalesreport'])->n
 
 Route::get('/Product-wise-Sales-Report', [ReportController::class, 'Product_wise_Sales_Report'])->name('Product-wise-Sales-Report');
 Route::post('/get-Product-sales-report', [ReportController::class, 'getProductsalesreport'])->name('get-Product-sales-report');
+
+Route::get('/Product-wise-Purchase-Report', [ReportController::class, 'Product_wise_purchase_Report'])->name('Product-wise-Purchase-Report');
+Route::post('/get-Product-Purchase-report', [ReportController::class, 'getProductPurchasereport'])->name('get-Product-Purchase-report');
+
 
 Route::get('/vendors-payments', [PaymentController::class, 'vendors_payments'])->name('vendors-payments');
 Route::post('/vendor-payment-store', [PaymentController::class, 'storeVendorPayment'])->name('vendor-payment-store');

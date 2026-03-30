@@ -327,6 +327,35 @@ class SaleController extends Controller
             }
 
 
+            // STEP 1: Revert OLD sale stock (Add back)
+            $oldItems = json_decode($sale->item, true) ?? [];
+            $oldCodes = json_decode($sale->code, true) ?? [];
+            $oldCartons = json_decode($sale->carton_qty, true) ?? [];
+            $oldPcs = json_decode($sale->pcs, true) ?? [];
+            $oldCats = json_decode($sale->category, true) ?? [];
+            $oldSubcats = json_decode($sale->subcategory, true) ?? [];
+            $oldSizes = json_decode($sale->size, true) ?? [];
+
+            foreach ($oldCodes as $key => $item_code) {
+                $product = Product::where('item_code', $item_code)
+                    ->where('item_name', $oldItems[$key])
+                    ->where('category', $oldCats[$key])
+                    ->where('sub_category', $oldSubcats[$key])
+                    ->where('size', $oldSizes[$key])
+                    ->first();
+
+                if ($product) {
+                    $cartonQty = (int) $oldCartons[$key];
+                    $pcsSold = (int) $oldPcs[$key];
+                    $pcsPerCarton = (int) $product->pcs_in_carton;
+
+                    // Restore stock
+                    $product->carton_quantity += $cartonQty;
+                    $product->initial_stock += ($cartonQty * $pcsPerCarton) + $pcsSold;
+                    $product->save();
+                }
+            }
+
             // Update sale data
             $sale->update([
                 'Date' => $request->Date,
@@ -356,14 +385,14 @@ class SaleController extends Controller
             ]);
 
 
-            // Update stock quantities based on new data
+            // STEP 3: Apply NEW sale stock
             foreach ($request->code as $index => $item_code) {
                 $product = Product::where('item_code', $item_code)->first();
                 if ($product) {
                     $cartonQty = (int) $request->carton_qty[$index];
                     $pcsSold = (int) ($request->pcs[$index] ?? 0);
 
-                    // Adjust stock - **You may want to first revert old sale stock quantities**
+                    // Subtract stock
                     $product->carton_quantity -= $cartonQty;
                     $product->initial_stock -= ($cartonQty * $product->pcs_in_carton) + $pcsSold;
 

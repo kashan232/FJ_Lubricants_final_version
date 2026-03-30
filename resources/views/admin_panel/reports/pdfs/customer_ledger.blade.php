@@ -107,13 +107,14 @@
             @foreach($e['items'] as $i => $item)
 
             @php
-            $carton = $e['cartons'][$i] ?? 0;
-            $pcs = $e['pcs'][$i] ?? 0;
-            $liter = $e['liters'][$i] ?? 0;
-            $rate = $e['rates'][$i] ?? 0;
+            $carton = (float) ($e['cartons'][$i] ?? 0);
+            $pcs    = (float) ($e['pcs'][$i] ?? 0);
+            $liter  = (float) ($e['liters'][$i] ?? 0);
+            $rate   = (float) ($e['rates'][$i] ?? 0);
+            $packing = (float) ($e['packings'][$i] ?? 1);
+            if ($packing == 0) $packing = 1;
 
-            $qty = $carton ?: ($liter ?: ($pcs ?: 1));
-            $debit = $rate * $qty;
+            $debit = ($carton * $rate) + (($pcs * $rate) / $packing);
 
             $balance += $debit;
 

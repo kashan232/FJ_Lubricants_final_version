@@ -103,8 +103,12 @@
                             $liter  = (float) ($e['liters'][$i] ?? 0);
                             $rate   = (float) ($e['rates'][$i] ?? 0);
 
-                            $qty = $carton ?: ($liter ?: ($pcs ?: 1));
-                            $debit = $rate * $qty;
+                            // Decode packing (which might be a string in the array due to JSON decoding nature)
+                            // The Controller passes 'packings' as an array of packing values (strings or numbers)
+                            $packing = (float) ($e['packings'][$i] ?? 1);
+                            if ($packing == 0) $packing = 1;
+
+                            $debit = ($carton * $rate) + (($pcs * $rate) / $packing);
 
                             // totals
                             $totalCartons += $carton;

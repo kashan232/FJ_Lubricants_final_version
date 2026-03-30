@@ -272,14 +272,27 @@ class CustomerController extends Controller
             // Fetch recoveries only by this salesman
             $Recoveries = CustomerRecovery::where('salesman', $salesman->name)
                 ->with('customer')
+                ->orderBy('id', 'desc')
                 ->get();
 
             $Salesmans = collect([$salesman]);
         } else {
             $ownerId = $authUser->id;
 
-            $Recoveries = CustomerRecovery::where('admin_or_user_id', $ownerId)
+            // Fetch IDs of salesmen created by this admin/distributor
+            $salesmanRecordIds = Salesman::where('admin_or_user_id', $ownerId)->pluck('id');
+
+            // Fetch User IDs associated with these salesmen
+            $salesmanUserIds = User::whereIn('user_id', $salesmanRecordIds)
+                ->where('usertype', 'salesman')
+                ->pluck('id');
+
+            // Merge owner ID with salesman user IDs
+            $allIds = $salesmanUserIds->push($ownerId);
+
+            $Recoveries = CustomerRecovery::whereIn('admin_or_user_id', $allIds)
                 ->with('customer')
+                ->orderBy('id', 'desc')
                 ->get();
 
             $Salesmans = Salesman::where('admin_or_user_id', $ownerId)
