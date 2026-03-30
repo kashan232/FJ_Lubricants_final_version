@@ -49,20 +49,7 @@
                             </table>
                         </div>
 
-                        <div class="mt-5 p-4 bg-light rounded border">
-                            <h5 class="fw-bold text-primary mb-3">Accounting Note: What is a Trial Balance?</h5>
-                            <ul class="mb-0">
-                                <li><strong>Definition:</strong> A Trial Balance is a report that lists the balances of all general ledger accounts of a business at a specific point in time.</li>
-                                <li><strong>Purpose:</strong> Its primary purpose is to ensure that the total of all <strong>Debits</strong> equals the total of all <strong>Credits</strong>, confirming that the books are mathematically balanced.</li>
-                                <li><strong>Components:</strong> 
-                                    <ul>
-                                        <li><strong>Debits:</strong> Include Assets (Cash, Receivables, Stock), Expenses, and Purchases.</li>
-                                        <li><strong>Credits:</strong> Include Liabilities (Payables), Income (Sales), and Capital/Equity.</li>
-                                    </ul>
-                                </li>
-                                <li><strong>Accuracy:</strong> If the totals match, it indicates that the double-entry bookkeeping rules have been followed correctly.</li>
-                            </ul>
-                        </div>
+                        
 
                         <div class="text-center mt-5 no-print">
                             <button onclick="window.print()" class="btn btn-outline-secondary px-5 py-2">
