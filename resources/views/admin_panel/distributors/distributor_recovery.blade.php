@@ -39,8 +39,8 @@
                                 <tr>
                                     <td>{{ $key + 1 }}</td>
                                     <td>{{ $recovery->date }}</td>
-                                    <td>{{ $recovery->distributor->Customer ?? 'N/A' }}</td>
-                                    <td>{{ $recovery->distributor->Area ?? 'N/A' }}</td>
+                                    <td>{{ $recovery->ledger->distributor->Customer ?? 'N/A' }}</td>
+                                    <td>{{ $recovery->ledger->distributor->Area ?? 'N/A' }}</td>
                                     <td>{{ $recovery->salesman }}</td>
                                     <td>{{ number_format($recovery->amount_paid, 0) }}</td>
                                     <td>{{ $recovery->remarks }}</td>
@@ -80,7 +80,14 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Distributor</label>
-                            <input type="text" class="form-control" value="{{ $recovery->distributor->Customer ?? 'N/A' }}" readonly>
+                            <select name="distributor_id" class="form-control select" required>
+                                <option value="" disabled>Select Distributor</option>
+                                @foreach($distributors as $dist)
+                                <option value="{{ $dist->id }}" {{ ($recovery->ledger->distributor_id ?? 0) == $dist->id ? 'selected' : '' }}>
+                                    {{ $dist->Customer }}
+                                </option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Select Salesman</label>

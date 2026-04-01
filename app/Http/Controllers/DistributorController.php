@@ -282,43 +282,51 @@ class DistributorController extends Controller
     public function updateDistributorRecovery(Request $request, $id)
     {
         $request->validate([
-            'salesman' => 'required',
-            'date' => 'required|date',
-            'adjust_type' => 'required|in:plus,minus',
-            'adjust_amount' => 'required|numeric|min:0',
-            'description' => 'nullable|string',
+            'distributor_id' => 'required',
+            'salesman'       => 'required',
+            'date'           => 'required|date',
+            'adjust_type'    => 'required|in:plus,minus',
+            'adjust_amount'  => 'required|numeric|min:0',
+            'description'    => 'nullable|string',
         ]);
 
         $recovery = Recovery::findOrFail($id);
-        $ledger = DistributorLedger::find($recovery->distributor_ledger_id);
 
-        if (!$ledger) {
-            return redirect()->back()->with('error', 'Ledger record not found.');
+        // 1. Revert Old Payment from OLD Ledger
+        $oldLedger = DistributorLedger::find($recovery->distributor_ledger_id);
+        if ($oldLedger) {
+            $oldLedger->closing_balance += $recovery->amount_paid;
+            $oldLedger->save();
         }
 
+        // 2. Determine NEW Ledger based on Selected Distributor
+        $newLedger = DistributorLedger::where('distributor_id', $request->distributor_id)->first();
+        if (!$newLedger) {
+            // Revert changes if new ledger not found (optional, but safer)
+            return redirect()->back()->with('error', 'New Distributor Ledger record not found.');
+        }
+
+        // 3. Calculate New Total Payment amount
         $adjustAmount = $request->adjust_amount;
-
         if ($request->adjust_type === 'plus') {
-            // Plus adjustment
-            $new_amount_paid = $recovery->amount_paid + $adjustAmount;
-            $ledger->closing_balance -= $adjustAmount;
+            $newAmountPaid = $recovery->amount_paid + $adjustAmount;
         } else {
-            // Minus adjustment
-            $new_amount_paid = $recovery->amount_paid - $adjustAmount;
-            $ledger->closing_balance += $adjustAmount;
+            $newAmountPaid = $recovery->amount_paid - $adjustAmount;
         }
+        $newAmountPaid = max(0, $newAmountPaid);
 
-        // Prevent negative balances
-        $new_amount_paid = max(0, $new_amount_paid);
-        $ledger->closing_balance = max(0, $ledger->closing_balance);
+        // 4. Update NEW Ledger (Subtract New Payment Amount)
+        $newLedger->closing_balance -= $newAmountPaid;
+        $newLedger->closing_balance = max(0, $newLedger->closing_balance);
+        $newLedger->save();
 
-        $ledger->save();
-
+        // 5. Update Recovery Record with New Data
         $recovery->update([
-            'amount_paid' => $new_amount_paid,
-            'salesman' => $request->salesman,
-            'remarks' => $request->description,
-            'date' => $request->date,
+            'distributor_ledger_id' => $newLedger->id,
+            'amount_paid'           => $newAmountPaid,
+            'salesman'              => $request->salesman,
+            'remarks'               => $request->description,
+            'date'                  => $request->date,
         ]);
 
         return redirect()->route('Distributor-recovery')->with('success', 'Distributor recovery updated successfully.');
