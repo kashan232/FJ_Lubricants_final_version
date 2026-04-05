@@ -134,7 +134,7 @@ class ReportController extends Controller
 
         // ---- SALE RETURNS: build select list only with existing columns ----
         $srSelect = ['invoice_number', 'created_at', 'total_return_amount'];
-        $maybeCols = ['item', 'carton_qty', 'pcs', 'liter', 'rate'];
+        $maybeCols = ['item_names', 'carton_qty', 'pcs_qty', 'rate'];
 
         foreach ($maybeCols as $col) {
             if (Schema::hasColumn('sale_returns', $col)) {
@@ -164,10 +164,9 @@ class ReportController extends Controller
                 'invoice_number' => $r->invoice_number,
                 'created_at'     => $r->created_at,
                 'total_return_amount' => $r->total_return_amount,
-                'items'          => $mapVal($r, 'item'),
+                'items'          => $mapVal($r, 'item_names'),
                 'cartons'        => $mapVal($r, 'carton_qty'),
-                'pcs'            => $mapVal($r, 'pcs'),
-                'liters'         => $mapVal($r, 'liter'),
+                'pcs'            => $mapVal($r, 'pcs_qty'),
                 'rates'          => $mapVal($r, 'rate'),
             ];
         });
@@ -291,10 +290,9 @@ class ReportController extends Controller
                 'date' => $sr->created_at,
                 'invoice' => $sr->invoice_number,
                 'amount' => $sr->total_return_amount,
-                'items' => json_decode($sr->item ?? '[]', true),
+                'items' => json_decode($sr->item_names ?? '[]', true),
                 'cartons' => json_decode($sr->carton_qty ?? '[]', true),
-                'pcs' => json_decode($sr->pcs ?? '[]', true),
-                'liters' => json_decode($sr->liter ?? '[]', true),
+                'pcs' => json_decode($sr->pcs_qty ?? '[]', true),
                 'rates' => json_decode($sr->rate ?? '[]', true),
             ]);
         }
@@ -678,7 +676,7 @@ class ReportController extends Controller
 
         // SALE RETURNS: select only columns that exist to avoid SQL errors
         $srSelect = ['invoice_number', 'created_at', 'total_return_amount'];
-        $maybeCols = ['item', 'carton_qty', 'pcs', 'liter', 'rate'];
+        $maybeCols = ['item_names', 'carton_qty', 'pcs_qty', 'rate'];
 
         foreach ($maybeCols as $col) {
             if (Schema::hasColumn('sale_returns', $col)) {
@@ -707,10 +705,9 @@ class ReportController extends Controller
                 'invoice_number' => $r->invoice_number,
                 'created_at'     => $r->created_at,
                 'total_return_amount' => $r->total_return_amount,
-                'items'          => $mapVal($r, 'item'),
+                'items'          => $mapVal($r, 'item_names'),
                 'cartons'        => $mapVal($r, 'carton_qty'),
-                'pcs'            => $mapVal($r, 'pcs'),
-                'liters'         => $mapVal($r, 'liter'),
+                'pcs'            => $mapVal($r, 'pcs_qty'),
                 'rates'          => $mapVal($r, 'rate'),
             ];
         });
@@ -1200,7 +1197,7 @@ class ReportController extends Controller
             foreach ($returns as $ret) {
                 $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
                 $ctnArr   = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
-                $pcsArr   = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
+                $pcsArr   = json_decode($ret->pcs_qty, true) ?: explode(',', $ret->pcs_qty);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
                     if (trim($name) === $product->item) {
@@ -2581,7 +2578,7 @@ class ReportController extends Controller
                 foreach ($returns as $ret) {
                     $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
                     $ctnArr = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
-                    $pcsArr = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
+                    $pcsArr = json_decode($ret->pcs_qty, true) ?: explode(',', $ret->pcs_qty);
                     $totalArr = json_decode($ret->total, true) ?: explode(',', $ret->total);
 
                     foreach ($itemsArr ?? [] as $idx => $name) {
@@ -2666,7 +2663,7 @@ class ReportController extends Controller
                 foreach ($returns as $ret) {
                     $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
                     $ctnArr = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
-                    $pcsArr = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
+                    $pcsArr = json_decode($ret->pcs_qty, true) ?: explode(',', $ret->pcs_qty);
                     $totalArr = json_decode($ret->total, true) ?: explode(',', $ret->total);
 
                     foreach ($itemsArr ?? [] as $idx => $name) {
