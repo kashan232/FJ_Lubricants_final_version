@@ -38,13 +38,13 @@
                             <tbody>
                                 @foreach($salesReturns as $saleReturn)
                                 @php
-                                $itemNames = explode(',', $saleReturn->item_names);
-                                $pcsPerCarton = explode(',', $saleReturn->pcs_per_carton);
-                                $cartonQty = explode(',', $saleReturn->carton_qty);
-                                $pcsQty = explode(',', $saleReturn->pcs_qty);
-                                $rates = explode(',', $saleReturn->rate);
-                                $discounts = explode(',', $saleReturn->discount);
-                                $totals = explode(',', $saleReturn->total);
+                                $itemNames = json_decode($saleReturn->item_names, true) ?: explode(',', $saleReturn->item_names);
+                                $pcsPerCarton = json_decode($saleReturn->pcs_per_carton, true) ?: explode(',', $saleReturn->pcs_per_carton);
+                                $cartonQty = json_decode($saleReturn->carton_qty, true) ?: explode(',', $saleReturn->carton_qty);
+                                $pcsQty = json_decode($saleReturn->pcs_qty, true) ?: explode(',', $saleReturn->pcs_qty);
+                                $rates = json_decode($saleReturn->rate, true) ?: explode(',', $saleReturn->rate);
+                                $discounts = json_decode($saleReturn->discount, true) ?: explode(',', $saleReturn->discount);
+                                $totals = json_decode($saleReturn->total, true) ?: explode(',', $saleReturn->total);
                                 $itemCount = count($itemNames);
                                 @endphp
                                 @for($i = 0; $i < $itemCount; $i++)

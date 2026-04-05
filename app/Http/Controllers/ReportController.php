@@ -1000,15 +1000,15 @@ class ReportController extends Controller
             $totalDistributorReturnQty = 0;
             $distReturns = DB::table('sale_returns')
                 ->where('sale_type', 'distributor')
-                ->whereJsonContains('item_names', $item->item_name)
+                ->where('item_names', 'LIKE', '%' . $item->item_name . '%')
                 ->get();
 
             foreach ($distReturns as $ret) {
-                $itemsArr = json_decode($ret->item_names, true);
-                $qtyArr   = json_decode($ret->carton_qty, true);
+                $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
+                $qtyArr   = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
-                    if ($name === $item->item_name) {
+                    if (trim($name) === $item->item_name) {
                         $totalDistributorReturnQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
@@ -1018,15 +1018,15 @@ class ReportController extends Controller
             $totalLocalReturnQty = 0;
             $localReturns = DB::table('sale_returns')
                 ->where('sale_type', 'customer')
-                ->whereJsonContains('item_names', $item->item_name)
+                ->where('item_names', 'LIKE', '%' . $item->item_name . '%')
                 ->get();
 
             foreach ($localReturns as $ret) {
-                $itemsArr = json_decode($ret->item_names, true);
-                $qtyArr   = json_decode($ret->carton_qty, true);
+                $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
+                $qtyArr   = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
-                    if ($name === $item->item_name) {
+                    if (trim($name) === $item->item_name) {
                         $totalLocalReturnQty += (int)($qtyArr[$i] ?? 0);
                     }
                 }
@@ -1194,16 +1194,16 @@ class ReportController extends Controller
             $returns = DB::table('sale_returns')
                 ->where('sale_type', 'customer')
                 ->where('admin_or_user_id', $userId)
-                ->whereJsonContains('item_names', $product->item)
+                ->where('item_names', 'LIKE', '%' . $product->item . '%')
                 ->get();
 
             foreach ($returns as $ret) {
-                $itemsArr = json_decode($ret->item_names, true);
-                $ctnArr   = json_decode($ret->carton_qty, true);
-                $pcsArr   = json_decode($ret->pcs, true);
+                $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
+                $ctnArr   = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
+                $pcsArr   = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
 
                 foreach ($itemsArr ?? [] as $i => $name) {
-                    if ($name === $product->item) {
+                    if (trim($name) === $product->item) {
                         $returnCarton += (int) ($ctnArr[$i] ?? 0);
                         $returnPcs    += (int) ($pcsArr[$i] ?? 0);
                     }
