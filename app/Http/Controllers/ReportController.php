@@ -2489,7 +2489,7 @@ class ReportController extends Controller
 
     public function fetchProfitReport(Request $request)
     {
-        $selectedProducts = (array) ($request->Product ?? []);
+        $selectedItems = (array) ($request->Product ?? []);
         $startDate = $request->start_date;
         $endDate = $request->end_date;
 
@@ -2497,76 +2497,199 @@ class ReportController extends Controller
         $profitData = [];
 
         if ($user->usertype === 'admin') {
-            // 1. Fetch all products to have a base list
-            $productsListQuery = DB::table('products')->where('admin_or_user_id', $user->id);
-            if (!empty($selectedProducts) && !in_array('All', $selectedProducts)) {
-                $productsListQuery->whereIn('item_name', $selectedProducts);
+            // 1. Get products list (base for report)
+            $productsQuery = DB::table('products')->where('admin_or_user_id', $user->id);
+            if (!empty($selectedItems) && !in_array('All', $selectedItems)) {
+                $productsQuery->whereIn('item_name', $selectedItems);
             }
-            $productsList = $productsListQuery->get(['item_name as item']);
+            $productsList = $productsQuery->get(['item_name', 'wholesale_price', 'pcs_in_carton']);
+            $itemCosts = $productsList->pluck('wholesale_price', 'item_name')->toArray();
+            $itemPcsInCarton = $productsList->pluck('pcs_in_carton', 'item_name')->toArray();
 
-            // 2. Pre-fetch all relevant sales and purchases to avoid N+1 issues in loops
-            $purchases = DB::table('purchases')
-                ->whereBetween('purchase_date', [$startDate, $endDate])
-                ->get();
-            
+            // 2. Fetch all sales by this admin in date range
             $distSales = DB::table('sales')
+                ->where('admin_or_user_id', $user->id)
                 ->whereBetween('Date', [$startDate, $endDate])
                 ->get();
                 
             $localSales = DB::table('local_sales')
+                ->where('admin_or_user_id', $user->id)
                 ->where('identify', 'admin')
                 ->whereBetween('Date', [$startDate, $endDate])
                 ->get();
 
-            foreach ($productsList as $product) {
-                $itemName = $product->item;
-                $totalPurchase = 0;
-                $distributorSaleTotal = 0;
-                $customerSaleTotal = 0;
+            // 3. Fetch all returns in date range
+            $returns = DB::table('sale_returns')
+                ->where('admin_or_user_id', $user->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get();
 
-                // --- Purchase Calculation ---
-                foreach ($purchases as $row) {
-                    $items = json_decode($row->item, true) ?? [];
-                    $amounts = json_decode($row->amount, true) ?? [];
-                    foreach ($items as $index => $itm) {
-                        if ($itm === $itemName) {
-                            $totalPurchase += (float)($amounts[$index] ?? 0);
+            foreach ($productsList as $p) {
+                $itemName = $p->item_name;
+                $costPerCarton = (float)($itemCosts[$itemName] ?? 0);
+                $pcsPerCtn = (int)($itemPcsInCarton[$itemName] ?? 1);
+                $costPerPcs = $pcsPerCtn > 0 ? ($costPerCarton / $pcsPerCtn) : 0;
+
+                $revenue = 0;
+                $costOfSales = 0;
+                $soldCartons = 0;
+                $soldPcs = 0;
+
+                // Process Distributor Sales
+                foreach ($distSales as $sale) {
+                    $items = json_decode($sale->item, true) ?? [];
+                    $ctns = json_decode($sale->carton_qty, true) ?? [];
+                    $pcs = json_decode($sale->pcs, true) ?? [];
+                    $amounts = json_decode($sale->amount, true) ?? [];
+
+                    foreach ($items as $idx => $name) {
+                        if ($name === $itemName) {
+                            $c = (int)($ctns[$idx] ?? 0);
+                            $ps = (int)($pcs[$idx] ?? 0);
+                            $amt = (float)($amounts[$idx] ?? 0);
+
+                            $revenue += $amt;
+                            $costOfSales += ($c * $costPerCarton) + ($ps * $costPerPcs);
+                            $soldCartons += $c;
+                            $soldPcs += $ps;
                         }
                     }
                 }
 
-                // --- Distributor Sale Calculation ---
-                foreach ($distSales as $row) {
-                    $items = json_decode($row->item, true) ?? [];
-                    $amounts = json_decode($row->amount, true) ?? [];
-                    foreach ($items as $index => $itm) {
-                        if ($itm === $itemName) {
-                            $distributorSaleTotal += (float)($amounts[$index] ?? 0);
+                // Process Local Sales
+                foreach ($localSales as $sale) {
+                    $items = json_decode($sale->item, true) ?? [];
+                    $ctns = json_decode($sale->carton_qty, true) ?? [];
+                    $pcs = json_decode($sale->pcs, true) ?? [];
+                    $amounts = json_decode($sale->amount, true) ?? [];
+
+                    foreach ($items as $idx => $name) {
+                        if ($name === $itemName) {
+                            $c = (int)($ctns[$idx] ?? 0);
+                            $ps = (int)($pcs[$idx] ?? 0);
+                            $amt = (float)($amounts[$idx] ?? 0);
+
+                            $revenue += $amt;
+                            $costOfSales += ($c * $costPerCarton) + ($ps * $costPerPcs);
+                            $soldCartons += $c;
+                            $soldPcs += $ps;
                         }
                     }
                 }
 
-                // --- Customer (Local) Sale Calculation ---
-                foreach ($localSales as $row) {
-                    $items = json_decode($row->item, true) ?? [];
-                    $amounts = json_decode($row->amount, true) ?? [];
-                    foreach ($items as $index => $itm) {
-                        if ($itm === $itemName) {
-                            $customerSaleTotal += (float)($amounts[$index] ?? 0);
+                // Process Returns (Subtract from Sales)
+                foreach ($returns as $ret) {
+                    $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
+                    $ctnArr = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
+                    $pcsArr = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
+                    $totalArr = json_decode($ret->total, true) ?: explode(',', $ret->total);
+
+                    foreach ($itemsArr ?? [] as $idx => $name) {
+                        if (trim($name) === $itemName) {
+                            $rc = (int)($ctnArr[$idx] ?? 0);
+                            $rps = (int)($pcsArr[$idx] ?? 0);
+                            $ramt = (float)($totalArr[$idx] ?? 0);
+
+                            $revenue -= $ramt; // Subtract return revenue
+                            $costOfSales -= ($rc * $costPerCarton) + ($rps * $costPerPcs); // Subtract cost of returned items
+                            $soldCartons -= $rc;
+                            $soldPcs -= $rps;
                         }
                     }
                 }
 
-                $totalSale = $distributorSaleTotal + $customerSaleTotal;
-
-                if ($totalPurchase > 0 || $totalSale > 0) {
+                if ($soldCartons != 0 || $soldPcs != 0 || $revenue != 0) {
                     $profitData[] = [
                         'item' => $itemName,
-                        'purchase_total' => $totalPurchase,
-                        'distributor_sale' => $distributorSaleTotal,
-                        'customer_sale' => $customerSaleTotal,
-                        'sale_total' => $totalSale,
-                        'profit' => $totalSale - $totalPurchase
+                        'sold_qty' => "{$soldCartons} Ctn, {$soldPcs} Pcs",
+                        'revenue' => round($revenue, 2),
+                        'cost' => round($costOfSales, 2),
+                        'profit' => round($revenue - $costOfSales, 2)
+                    ];
+                }
+            }
+        } else if ($user->usertype === 'distributor') {
+            // 1. Get distributor's products list
+            $distProducts = DB::table('distributor_products')->where('distributor_id', $user->user_id);
+            if (!empty($selectedItems) && !in_array('All', $selectedItems)) {
+                $distProducts->whereIn('item', $selectedItems);
+            }
+            $productsList = $distProducts->get(['item', 'price as cost_price', 'pcs_carton']);
+            $itemCosts = $productsList->pluck('cost_price', 'item')->toArray();
+            $itemPcsInCarton = $productsList->pluck('pcs_carton', 'item')->toArray();
+
+            // 2. Fetch distributor's local sales in range
+            $localSales = DB::table('local_sales')
+                ->where('admin_or_user_id', $user->id)
+                ->where('identify', 'distributor')
+                ->whereBetween('Date', [$startDate, $endDate])
+                ->get();
+
+            // 3. Fetch returns
+            $returns = DB::table('sale_returns')
+                ->where('admin_or_user_id', $user->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get();
+
+            foreach ($productsList as $p) {
+                $itemName = $p->item;
+                $costPerCarton = (float)($itemCosts[$itemName] ?? 0);
+                $pcsPerCtn = (int)($itemPcsInCarton[$itemName] ?? 1);
+                $costPerPcs = $pcsPerCtn > 0 ? ($costPerCarton / $pcsPerCtn) : 0;
+
+                $revenue = 0;
+                $costOfSales = 0;
+                $soldCartons = 0;
+                $soldPcs = 0;
+
+                foreach ($localSales as $sale) {
+                    $items = json_decode($sale->item, true) ?? [];
+                    $ctns = json_decode($sale->carton_qty, true) ?? [];
+                    $pcs = json_decode($sale->pcs, true) ?? [];
+                    $amounts = json_decode($sale->amount, true) ?? [];
+
+                    foreach ($items as $idx => $name) {
+                        if ($name === $itemName) {
+                            $c = (int)($ctns[$idx] ?? 0);
+                            $ps = (int)($pcs[$idx] ?? 0);
+                            $amt = (float)($amounts[$idx] ?? 0);
+
+                            $revenue += $amt;
+                            $costOfSales += ($c * $costPerCarton) + ($ps * $costPerPcs);
+                            $soldCartons += $c;
+                            $soldPcs += $ps;
+                        }
+                    }
+                }
+
+                // Returns
+                foreach ($returns as $ret) {
+                    $itemsArr = json_decode($ret->item_names, true) ?: explode(',', $ret->item_names);
+                    $ctnArr = json_decode($ret->carton_qty, true) ?: explode(',', $ret->carton_qty);
+                    $pcsArr = json_decode($ret->pcs, true) ?: explode(',', $ret->pcs);
+                    $totalArr = json_decode($ret->total, true) ?: explode(',', $ret->total);
+
+                    foreach ($itemsArr ?? [] as $idx => $name) {
+                        if (trim($name) === $itemName) {
+                            $rc = (int)($ctnArr[$idx] ?? 0);
+                            $rps = (int)($pcsArr[$idx] ?? 0);
+                            $ramt = (float)($totalArr[$idx] ?? 0);
+
+                            $revenue -= $ramt;
+                            $costOfSales -= ($rc * $costPerCarton) + ($rps * $costPerPcs);
+                            $soldCartons -= $rc;
+                            $soldPcs -= $rps;
+                        }
+                    }
+                }
+
+                if ($soldCartons != 0 || $soldPcs != 0 || $revenue != 0) {
+                    $profitData[] = [
+                        'item' => $itemName,
+                        'sold_qty' => "{$soldCartons} Ctn, {$soldPcs} Pcs",
+                        'revenue' => round($revenue, 2),
+                        'cost' => round($costOfSales, 2),
+                        'profit' => round($revenue - $costOfSales, 2)
                     ];
                 }
             }

@@ -56,10 +56,9 @@
                                         <tr class="text-white">
                                             <th class="text-white">S.No</th>
                                             <th class="text-white">Product Name</th>
-                                            <th class="text-white">Total Purchase (PKR)</th>
-                                            <th class="text-white">Distributor Sale (PKR)</th>
-                                            <th class="text-white">Customer Sale (PKR)</th>
-                                            <th class="text-white">Total Sale (PKR)</th>
+                                            <th class="text-white">Sold Qty</th>
+                                            <th class="text-white">Total Revenue (PKR)</th>
+                                            <th class="text-white">Total Cost (PKR)</th>
                                             <th class="text-white">Profit / Loss (PKR)</th>
                                         </tr>
                                     </thead>
@@ -68,11 +67,9 @@
                                     </tbody>
                                     <tfoot class="table-light fw-bold">
                                         <tr>
-                                            <td colspan="2" class="text-end">GRAND TOTAL:</td>
-                                            <td id="totalPurchase">0</td>
-                                            <td id="totalDistSale">0</td>
-                                            <td id="totalCustSale">0</td>
-                                            <td id="totalSale">0</td>
+                                            <td colspan="3" class="text-end">GRAND TOTAL:</td>
+                                            <td id="totalRevenue">0</td>
+                                            <td id="totalCost">0</td>
                                             <td id="totalProfit">0</td>
                                         </tr>
                                     </tfoot>
@@ -128,17 +125,13 @@
                         $('#noData').hide();
                         $('#reportContainer').fadeIn();
                         let rows = '';
-                        let grandPurchase = 0;
-                        let grandDistSale = 0;
-                        let grandCustSale = 0;
-                        let grandTotalSale = 0;
+                        let grandRevenue = 0;
+                        let grandCost = 0;
                         let grandProfit = 0;
 
                         response.forEach((item, index) => {
-                            grandPurchase += parseFloat(item.purchase_total);
-                            grandDistSale += parseFloat(item.distributor_sale);
-                            grandCustSale += parseFloat(item.customer_sale);
-                            grandTotalSale += parseFloat(item.sale_total);
+                            grandRevenue += parseFloat(item.revenue);
+                            grandCost += parseFloat(item.cost);
                             grandProfit += parseFloat(item.profit);
 
                             const profitClass = item.profit >= 0 ? 'text-success' : 'text-danger';
@@ -147,20 +140,17 @@
                                 <tr>
                                     <td>${index + 1}</td>
                                     <td class="text-start fw-bold">${item.item}</td>
-                                    <td>${parseFloat(item.purchase_total).toLocaleString()}</td>
-                                    <td>${parseFloat(item.distributor_sale).toLocaleString()}</td>
-                                    <td>${parseFloat(item.customer_sale).toLocaleString()}</td>
-                                    <td>${parseFloat(item.sale_total).toLocaleString()}</td>
+                                    <td>${item.sold_qty}</td>
+                                    <td>${parseFloat(item.revenue).toLocaleString()}</td>
+                                    <td>${parseFloat(item.cost).toLocaleString()}</td>
                                     <td class="${profitClass} fw-bold">${parseFloat(item.profit).toLocaleString()}</td>
                                 </tr>
                             `;
                         });
 
                         $('#reportBody').html(rows);
-                        $('#totalPurchase').text(grandPurchase.toLocaleString());
-                        $('#totalDistSale').text(grandDistSale.toLocaleString());
-                        $('#totalCustSale').text(grandCustSale.toLocaleString());
-                        $('#totalSale').text(grandTotalSale.toLocaleString());
+                        $('#totalRevenue').text(grandRevenue.toLocaleString());
+                        $('#totalCost').text(grandCost.toLocaleString());
                         
                         const grandProfitClass = grandProfit >= 0 ? 'text-success' : 'text-danger';
                         $('#totalProfit').text(grandProfit.toLocaleString()).removeClass('text-success text-danger').addClass(grandProfitClass);
