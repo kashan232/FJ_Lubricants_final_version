@@ -291,7 +291,7 @@ $isDistributor = auth()->user()->usertype === 'distributor';
                     totalStockValue += stockValue;
 
                     let sizeValue = 0;
-                    let sizeText = item.size.toLowerCase().trim();
+                    let sizeText = (item.size || "").toLowerCase().trim();
 
                     // ✅ Enhanced Size Calculation Logic
                     if (sizeText.includes('ml')) {
