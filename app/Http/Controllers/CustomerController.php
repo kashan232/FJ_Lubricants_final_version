@@ -268,14 +268,14 @@ class CustomerController extends Controller
                 return redirect()->back()->with('error', 'Salesman not found.');
             }
 
-            $ownerId = $salesman->name;
             // Fetch recoveries only by this salesman
             $Recoveries = CustomerRecovery::where('salesman', $salesman->name)
-                ->with('customer')
+                ->with('ledger.Customer')
                 ->orderBy('id', 'desc')
                 ->get();
 
             $Salesmans = collect([$salesman]);
+            $ownerIdForCustomers = $salesman->admin_or_user_id;
         } else {
             $ownerId = $authUser->id;
 
@@ -291,16 +291,19 @@ class CustomerController extends Controller
             $allIds = $salesmanUserIds->push($ownerId);
 
             $Recoveries = CustomerRecovery::whereIn('admin_or_user_id', $allIds)
-                ->with('customer')
+                ->with('ledger.Customer')
                 ->orderBy('id', 'desc')
                 ->get();
 
             $Salesmans = Salesman::where('admin_or_user_id', $ownerId)
                 ->where('designation', 'Saleman')
                 ->get();
+            $ownerIdForCustomers = $ownerId;
         }
 
-        return view('admin_panel.customer.customer_recovery', compact('Recoveries', 'Salesmans'));
+        $customers = Customer::where('admin_or_user_id', $ownerIdForCustomers)->get();
+
+        return view('admin_panel.customer.customer_recovery', compact('Recoveries', 'Salesmans', 'customers'));
     }
 
 
@@ -412,41 +415,41 @@ class CustomerController extends Controller
     public function updateRecovery(Request $request, $id)
     {
         $request->validate([
-            'date' => 'required|date',
-            'adjust_type' => 'required|in:plus,minus',
-            'adjust_amount' => 'required|numeric|min:0',
-            'remarks' => 'nullable|string',
+            'customer_id' => 'required|exists:customers,id',
+            'salesman'    => 'required',
+            'amount_paid' => 'required|numeric|min:0',
+            'date'        => 'required|date',
+            'remarks'     => 'nullable|string',
         ]);
 
         $recovery = CustomerRecovery::findOrFail($id);
-        $ledger = CustomerLedger::find($recovery->customer_ledger_id);
 
-        if (!$ledger) {
-            return response()->json(['message' => 'Ledger record not found.'], 404);
+        // 1. Revert Old Amount from OLD Ledger
+        $oldLedger = CustomerLedger::find($recovery->customer_ledger_id);
+        if ($oldLedger) {
+            $oldLedger->closing_balance += $recovery->amount_paid;
+            $oldLedger->save();
         }
 
-        $adjustAmount = $request->adjust_amount;
-
-        if ($request->adjust_type === 'plus') {
-            $new_amount_paid = $recovery->amount_paid + $adjustAmount;
-            $ledger->closing_balance -= $adjustAmount;  // reduce ledger balance
-        } else {
-            $new_amount_paid = $recovery->amount_paid - $adjustAmount;
-            $ledger->closing_balance += $adjustAmount;  // increase ledger balance
+        // 2. Find NEW Ledger based on Selected Customer
+        $newLedger = CustomerLedger::where('customer_id', $request->customer_id)->first();
+        if (!$newLedger) {
+            return redirect()->back()->with('error', 'New Customer Ledger record not found.');
         }
 
-        // Ensure no negative values
-        $new_amount_paid = max(0, $new_amount_paid);
-        $ledger->closing_balance = max(0, $ledger->closing_balance);
+        // 3. Update NEW Ledger (Subtract New Payment Amount)
+        $newLedger->closing_balance -= $request->amount_paid;
+        $newLedger->save();
 
-        $ledger->save();
-
+        // 4. Update Recovery Record with New Data
         $recovery->update([
-            'amount_paid' => $new_amount_paid,
-            'remarks' => $request->remarks,
-            'date' => $request->date,
+            'customer_ledger_id' => $newLedger->id,
+            'amount_paid'        => $request->amount_paid,
+            'salesman'           => $request->salesman,
+            'remarks'            => $request->remarks,
+            'date'               => $request->date,
         ]);
 
-        return redirect()->route('customer-recovery')->with('success', 'Distributor recovery updated successfully.');
+        return redirect()->route('customer-recovery')->with('success', 'Customer recovery updated successfully.');
     }
 }

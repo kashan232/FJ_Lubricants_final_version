@@ -17,4 +17,9 @@ class CustomerRecovery extends Model
     {
         return $this->belongsTo(Customer::class, 'customer_ledger_id');
     }
+
+    public function ledger()
+    {
+        return $this->belongsTo(CustomerLedger::class, 'customer_ledger_id');
+    }
 }

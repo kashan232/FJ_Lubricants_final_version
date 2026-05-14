@@ -101,20 +101,8 @@
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Original Amount</label>
-                            <input type="text" class="form-control" id="modal_amount_paid_{{ $recovery->id }}" value="{{ $recovery->amount_paid }}" readonly>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Update Type</label>
-                            <select class="form-control" name="adjust_type" required>
-                                <option value="">-- Select --</option>
-                                <option value="plus">+ plus</option>
-                                <option value="minus">– minus</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Amount to Adjust</label>
-                            <input type="number" step="0.01" class="form-control" name="adjust_amount" required>
+                            <label class="form-label">Amount Paid</label>
+                            <input type="number" step="0.01" class="form-control" name="amount_paid" value="{{ $recovery->amount_paid }}" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Description</label>

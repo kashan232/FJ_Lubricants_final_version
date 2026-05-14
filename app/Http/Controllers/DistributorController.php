@@ -285,8 +285,7 @@ class DistributorController extends Controller
             'distributor_id' => 'required',
             'salesman'       => 'required',
             'date'           => 'required|date',
-            'adjust_type'    => 'required|in:plus,minus',
-            'adjust_amount'  => 'required|numeric|min:0',
+            'amount_paid'    => 'required|numeric|min:0',
             'description'    => 'nullable|string',
         ]);
 
@@ -302,28 +301,17 @@ class DistributorController extends Controller
         // 2. Determine NEW Ledger based on Selected Distributor
         $newLedger = DistributorLedger::where('distributor_id', $request->distributor_id)->first();
         if (!$newLedger) {
-            // Revert changes if new ledger not found (optional, but safer)
             return redirect()->back()->with('error', 'New Distributor Ledger record not found.');
         }
 
-        // 3. Calculate New Total Payment amount
-        $adjustAmount = $request->adjust_amount;
-        if ($request->adjust_type === 'plus') {
-            $newAmountPaid = $recovery->amount_paid + $adjustAmount;
-        } else {
-            $newAmountPaid = $recovery->amount_paid - $adjustAmount;
-        }
-        $newAmountPaid = max(0, $newAmountPaid);
-
-        // 4. Update NEW Ledger (Subtract New Payment Amount)
-        $newLedger->closing_balance -= $newAmountPaid;
-        $newLedger->closing_balance = max(0, $newLedger->closing_balance);
+        // 3. Update NEW Ledger (Subtract New Payment Amount)
+        $newLedger->closing_balance -= $request->amount_paid;
         $newLedger->save();
 
-        // 5. Update Recovery Record with New Data
+        // 4. Update Recovery Record with New Data
         $recovery->update([
             'distributor_ledger_id' => $newLedger->id,
-            'amount_paid'           => $newAmountPaid,
+            'amount_paid'           => $request->amount_paid,
             'salesman'              => $request->salesman,
             'remarks'               => $request->description,
             'date'                  => $request->date,

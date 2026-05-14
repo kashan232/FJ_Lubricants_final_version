@@ -42,9 +42,9 @@
                                         <td>{{ $key + 1 }}</td>
                                         <td>{{ $recovery->id }}</td>
                                         <td>{{ $recovery->date }}</td>
-                                        <td>{{ $recovery->customer->shop_name ?? 'N/A' }}</td>
-                                        <td>{{ $recovery->customer->customer_name ?? 'N/A' }}</td>
-                                        <td>{{ $recovery->customer->area ?? 'N/A' }}</td>
+                                        <td>{{ $recovery->ledger->Customer->shop_name ?? 'N/A' }}</td>
+                                        <td>{{ $recovery->ledger->Customer->customer_name ?? 'N/A' }}</td>
+                                        <td>{{ $recovery->ledger->Customer->area ?? 'N/A' }}</td>
                                         <td>{{ $recovery->salesman }}</td>
                                         <td class="amount_paid">{{ number_format($recovery->amount_paid, 0) }}</td>
                                         <td class="remarks">{{ $recovery->remarks }}</td>
@@ -80,31 +80,31 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Customer</label>
-                            <input type="text" class="form-control" value="{{ $recovery->customer->customer_name ?? 'N/A' }}" readonly>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Salesman</label>
-                            <input type="text" class="form-control" value="{{ $recovery->salesman }}" readonly>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Current Amount Paid</label>
-                            <input type="text" class="form-control" value="{{ number_format($recovery->amount_paid, 0) }}" readonly>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Adjustment Type</label>
-                            <select name="adjust_type" class="form-select" required>
-                                <option value="">Select Type</option>
-                                <option value="plus">Plus (+)</option>
-                                <option value="minus">Minus (-)</option>
+                            <select name="customer_id" class="form-select" required>
+                                <option value="" disabled>Select Customer</option>
+                                @foreach($customers as $cust)
+                                    <option value="{{ $cust->id }}" {{ ($recovery->ledger->customer_id ?? 0) == $cust->id ? 'selected' : '' }}>
+                                        {{ $cust->customer_name }} ({{ $cust->shop_name }})
+                                    </option>
+                                @endforeach
                             </select>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Adjustment Amount</label>
-                            <input type="number" name="adjust_amount" class="form-control" min="0" step="any" required>
+                            <label class="form-label">Salesman</label>
+                            <select name="salesman" class="form-select" required>
+                                <option value="" disabled>Select Salesman</option>
+                                @foreach($Salesmans as $saleman)
+                                    <option value="{{ $saleman->name }}" {{ $recovery->salesman == $saleman->name ? 'selected' : '' }}>
+                                        {{ $saleman->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Amount Paid</label>
+                            <input type="number" name="amount_paid" class="form-control" value="{{ $recovery->amount_paid }}" min="0" step="any" required>
                         </div>
 
                         <div class="mb-3">
