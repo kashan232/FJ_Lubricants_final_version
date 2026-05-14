@@ -415,36 +415,48 @@ class CustomerController extends Controller
     public function updateRecovery(Request $request, $id)
     {
         $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'salesman'    => 'required',
-            'amount_paid' => 'required|numeric|min:0',
-            'date'        => 'required|date',
-            'remarks'     => 'nullable|string',
+            'customer_id'   => 'required|exists:customers,id',
+            'base_amount'   => 'required|numeric|min:0',
+            'salesman'      => 'required',
+            'adjust_type'   => 'required|in:plus,minus',
+            'adjust_amount' => 'required|numeric|min:0',
+            'date'          => 'required|date',
+            'remarks'       => 'nullable|string',
         ]);
 
         $recovery = CustomerRecovery::findOrFail($id);
 
-        // 1. Revert Old Amount from OLD Ledger
+        // 1. Revert Old Payment from OLD Ledger (original amount from DB)
         $oldLedger = CustomerLedger::find($recovery->customer_ledger_id);
         if ($oldLedger) {
             $oldLedger->closing_balance += $recovery->amount_paid;
             $oldLedger->save();
         }
 
-        // 2. Find NEW Ledger based on Selected Customer
+        // 2. Determine NEW Ledger based on Selected Customer
         $newLedger = CustomerLedger::where('customer_id', $request->customer_id)->first();
         if (!$newLedger) {
             return redirect()->back()->with('error', 'New Customer Ledger record not found.');
         }
 
-        // 3. Update NEW Ledger (Subtract New Payment Amount)
-        $newLedger->closing_balance -= $request->amount_paid;
+        // 3. Calculate New Total Payment amount using the submitted base_amount
+        $adjustAmount = $request->adjust_amount;
+        if ($request->adjust_type === 'plus') {
+            $newAmountPaid = $request->base_amount + $adjustAmount;
+        } else {
+            $newAmountPaid = $request->base_amount - $adjustAmount;
+        }
+        $newAmountPaid = max(0, $newAmountPaid);
+
+        // 4. Update NEW Ledger (Subtract New Payment Amount)
+        $newLedger->closing_balance -= $newAmountPaid;
+        $newLedger->closing_balance = max(0, $newLedger->closing_balance);
         $newLedger->save();
 
-        // 4. Update Recovery Record with New Data
+        // 5. Update Recovery Record with New Data
         $recovery->update([
             'customer_ledger_id' => $newLedger->id,
-            'amount_paid'        => $request->amount_paid,
+            'amount_paid'        => $newAmountPaid,
             'salesman'           => $request->salesman,
             'remarks'            => $request->remarks,
             'date'               => $request->date,

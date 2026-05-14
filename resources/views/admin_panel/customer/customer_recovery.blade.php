@@ -103,8 +103,22 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Amount Paid</label>
-                            <input type="number" name="amount_paid" class="form-control" value="{{ $recovery->amount_paid }}" min="0" step="any" required>
+                            <label class="form-label">Current Amount Paid</label>
+                            <input type="number" name="base_amount" class="form-control" value="{{ $recovery->amount_paid }}" step="any" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Adjustment Type</label>
+                            <select name="adjust_type" class="form-select" required>
+                                <option value="">Select Type</option>
+                                <option value="plus">Plus (+)</option>
+                                <option value="minus">Minus (-)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Adjustment Amount</label>
+                            <input type="number" name="adjust_amount" class="form-control" min="0" step="any" required>
                         </div>
 
                         <div class="mb-3">

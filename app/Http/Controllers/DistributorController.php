@@ -283,9 +283,11 @@ class DistributorController extends Controller
     {
         $request->validate([
             'distributor_id' => 'required',
+            'base_amount'    => 'required|numeric|min:0',
             'salesman'       => 'required',
             'date'           => 'required|date',
-            'amount_paid'    => 'required|numeric|min:0',
+            'adjust_type'    => 'required|in:plus,minus',
+            'adjust_amount'  => 'required|numeric|min:0',
             'description'    => 'nullable|string',
         ]);
 
@@ -304,14 +306,24 @@ class DistributorController extends Controller
             return redirect()->back()->with('error', 'New Distributor Ledger record not found.');
         }
 
-        // 3. Update NEW Ledger (Subtract New Payment Amount)
-        $newLedger->closing_balance -= $request->amount_paid;
+        // 3. Calculate New Total Payment amount using the submitted base_amount
+        $adjustAmount = $request->adjust_amount;
+        if ($request->adjust_type === 'plus') {
+            $newAmountPaid = $request->base_amount + $adjustAmount;
+        } else {
+            $newAmountPaid = $request->base_amount - $adjustAmount;
+        }
+        $newAmountPaid = max(0, $newAmountPaid);
+
+        // 4. Update NEW Ledger (Subtract New Payment Amount)
+        $newLedger->closing_balance -= $newAmountPaid;
+        $newLedger->closing_balance = max(0, $newLedger->closing_balance);
         $newLedger->save();
 
-        // 4. Update Recovery Record with New Data
+        // 5. Update Recovery Record with New Data
         $recovery->update([
             'distributor_ledger_id' => $newLedger->id,
-            'amount_paid'           => $request->amount_paid,
+            'amount_paid'           => $newAmountPaid,
             'salesman'              => $request->salesman,
             'remarks'               => $request->description,
             'date'                  => $request->date,
