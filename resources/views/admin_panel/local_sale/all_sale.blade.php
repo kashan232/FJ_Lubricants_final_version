@@ -46,7 +46,10 @@
                                         @endif
                                     </td>
                                     <td>{{ $sale->Date }}</td>
-                                    <td>{{ $sale->customer->customer_name ?? 'N/A' }} </td>
+                                    <td>
+                                        <span class="d-block"><strong>Name:</strong> {{ $sale->customer->customer_name ?? 'N/A' }}</span>
+                                        <span class="d-block text-muted" style="font-size: 0.85rem;"><strong>Shop:</strong> {{ $sale->customer_shopname ?? $sale->customer->shop_name ?? 'N/A' }}</span>
+                                    </td>
                                     <td>{{ $sale->customer_city	 }} <br> {{ $sale->customer_area }}</td>
                                     <td>{{ $sale->customer_address }} <br> {{ $sale->customer_phone }}</td>
                                     <td>{{ $sale->Booker }}</td>

@@ -52,7 +52,10 @@
                                         @endif
                                     </td>
                                     <td>{{ $sale->Date }}</td>
-                                    <td>{{ $sale->distributor->Customer ?? 'N/A' }} <br> {{ $sale->distributor->Owner ?? 'N/A' }}</td>
+                                    <td>
+                                        <span class="d-block"><strong>Distributor:</strong> {{ $sale->distributor->Customer ?? 'N/A' }}</span>
+                                        <span class="d-block text-muted" style="font-size: 0.85rem;"><strong>Owner:</strong> {{ $sale->distributor->Owner ?? 'N/A' }}</span>
+                                    </td>
                                     <td>{{ $sale->distributor_city }} <br> {{ $sale->distributor_area }}</td>
                                     <td>{{ $sale->distributor_address }} <br> {{ $sale->distributor_phone }}</td>
                                     <td>{{ $sale->Booker }}</td>
